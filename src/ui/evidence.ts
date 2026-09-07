@@ -1,7 +1,15 @@
-import { formatYmd, quarantineState } from '../lib/dates'
+import { formatYmd, operationalMilestones, quarantineState } from '../lib/dates'
 import { ROOMS, type LegalStatus, type PplRow } from '../lib/types'
 import { LEGAL_LABELS, escapeHtml, go, icon, sortPpl, statusClass } from './base'
 import { loadPpl } from './store'
+
+function operationalWarning(row: PplRow) {
+  const state = quarantineState(row.data_depunerii)
+  if (state.day > 22) return ''
+  const milestones = operationalMilestones(row.data_depunerii).filter((item) => item.day >= Math.max(20, state.day))
+  if (!milestones.length) return ''
+  return `<div class="operational-warning" role="note"><strong>Atenție – zi nelucrătoare</strong>${milestones.map((item) => `<span>Ziua ${item.day} cade ${escapeHtml(item.nonWorkingReason)} (${formatYmd(item.date)}). ${item.dueToday ? '<b>De tratat astăzi.</b>' : `Alertă anticipată: ${formatYmd(item.operationalDate)}.`}</span>`).join('')}</div>`
+}
 
 export function pplCard(row: PplRow) {
   const state = quarantineState(row.data_depunerii)
@@ -18,6 +26,7 @@ export function pplCard(row: PplRow) {
       <div><span>Ziua curentă</span><strong>Ziua ${state.day}</strong></div>
       <div><span>Data aplicării regimului provizoriu</span><strong>${formatYmd(row.data_aplicarii_regimului_provizoriu)}</strong></div>
     </div>
+    ${operationalWarning(row)}
   </article>`
 }
 
