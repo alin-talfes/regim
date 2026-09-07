@@ -18,8 +18,17 @@ function formMarkup(values?: Partial<PplInput>, submitLabel = 'Adaugă PPL') {
     <label>Camera<select id="field-room" required>${roomOptions(values?.camera ?? '')}</select></label>
     <label>Situație juridică<select id="field-legal" required>${legalOptions(values?.situatie_juridica ?? '')}</select></label>
     <label>Data depunerii în penitenciar
-      <div class="date-row"><input id="field-date" type="text" inputmode="numeric" autocomplete="off" maxlength="10" placeholder="zz.ll.aaaa" value="${values?.data_depunerii ? formatYmd(values.data_depunerii) : ''}" required /><button id="today-btn" type="button" class="btn btn-secondary today-btn">AZI</button></div>
-      <span class="field-hint">Format: zz.ll.aaaa</span>
+      <div class="date-row">
+        <div class="date-input-shell">
+          <input id="field-date" type="text" inputmode="numeric" autocomplete="off" maxlength="10" placeholder="zz.ll.aaaa" value="${values?.data_depunerii ? formatYmd(values.data_depunerii) : ''}" required />
+          <span class="date-picker-control" title="Alege data din calendar">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>
+            <input id="field-date-picker" type="date" max="${bucharestToday()}" value="${values?.data_depunerii ?? ''}" aria-label="Alege data depunerii din calendar" />
+          </span>
+        </div>
+        <button id="today-btn" type="button" class="btn btn-secondary today-btn">AZI</button>
+      </div>
+      <span class="field-hint">Scrie zz.ll.aaaa sau alege data din calendar.</span>
     </label>
     <div id="date-error" class="field-error" aria-live="polite"></div>
     <div id="date-preview" class="date-preview" hidden></div>
@@ -29,10 +38,13 @@ function formMarkup(values?: Partial<PplInput>, submitLabel = 'Adaugă PPL') {
 
 function bindDateField(onChange?: () => void) {
   const input = document.querySelector<HTMLInputElement>('#field-date')!
+  const picker = document.querySelector<HTMLInputElement>('#field-date-picker')!
   const error = document.querySelector<HTMLDivElement>('#date-error')!
   const preview = document.querySelector<HTMLDivElement>('#date-preview')!
   const update = () => {
     const ymd = parseDisplayDate(input.value)
+    const pickerValue = ymd ?? ''
+    if (picker.value !== pickerValue) picker.value = pickerValue
     error.textContent = ''
     if (input.value.length === 10 && !ymd) error.textContent = 'Data introdusă nu este validă.'
     if (ymd && isFutureDate(ymd)) error.textContent = 'Data depunerii nu poate fi în viitor.'
@@ -45,6 +57,11 @@ function bindDateField(onChange?: () => void) {
     onChange?.()
   }
   input.addEventListener('input', () => { input.value = maskDateInput(input.value); update() })
+  picker.addEventListener('change', () => {
+    if (!picker.value) return
+    input.value = formatYmd(picker.value)
+    update()
+  })
   document.querySelector('#today-btn')!.addEventListener('click', () => { input.value = formatYmd(bucharestToday()); update(); input.focus() })
   update()
 }
