@@ -1,4 +1,4 @@
-const CACHE = 'regim-shell-v2';
+const CACHE = 'regim-shell-v3';
 const BASE = '/regim/';
 const PRECACHE = [BASE, `${BASE}manifest.webmanifest`, `${BASE}icons/icon-192.png`, `${BASE}icons/icon-512.png`];
 
@@ -8,10 +8,24 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))))
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key))))
       .then(() => self.clients.claim())
   );
 });
+
+async function networkFirst(request, fallback) {
+  try {
+    const response = await fetch(request);
+    if (response.ok) {
+      const cache = await caches.open(CACHE);
+      await cache.put(fallback || request, response.clone());
+    }
+    return response;
+  } catch {
+    return (await caches.match(fallback || request)) || Response.error();
+  }
+}
 
 self.addEventListener('fetch', (event) => {
   const request = event.request;
@@ -20,15 +34,16 @@ self.addEventListener('fetch', (event) => {
   if (url.origin !== self.location.origin || !url.pathname.startsWith(BASE)) return;
 
   if (request.mode === 'navigate') {
-    event.respondWith(fetch(request).then((response) => {
-      const copy = response.clone();
-      caches.open(CACHE).then((cache) => cache.put(BASE, copy));
-      return response;
-    }).catch(() => caches.match(BASE)));
+    event.respondWith(networkFirst(request, BASE));
     return;
   }
 
-  if (['script', 'style', 'image', 'font'].includes(request.destination)) {
+  if (request.destination === 'script' || request.destination === 'style') {
+    event.respondWith(networkFirst(request));
+    return;
+  }
+
+  if (['image', 'font'].includes(request.destination)) {
     event.respondWith(caches.match(request).then((cached) => cached || fetch(request).then((response) => {
       if (response.ok) caches.open(CACHE).then((cache) => cache.put(request, response.clone()));
       return response;
