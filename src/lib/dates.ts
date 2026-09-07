@@ -28,6 +28,10 @@ function toUtcEpoch({ year, month, day }: Parts) {
   return Date.UTC(year, month - 1, day)
 }
 
+function ymdFromUtcDate(date: Date) {
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`
+}
+
 export function maskDateInput(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 8)
   if (digits.length <= 2) return digits
@@ -52,8 +56,7 @@ export function formatYmd(ymd: string): string {
 export function addCalendarDays(ymd: string, days: number): string {
   const parts = partsFromYmd(ymd)
   if (!parts) throw new Error('Invalid date-only value')
-  const date = new Date(toUtcEpoch(parts) + days * DAY_MS)
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`
+  return ymdFromUtcDate(new Date(toUtcEpoch(parts) + days * DAY_MS))
 }
 
 export function quarantineExpiry(depositYmd: string): string {
@@ -81,6 +84,77 @@ export function bucharestToday(now = new Date()): string {
   }).formatToParts(now)
   const get = (type: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === type)?.value ?? ''
   return `${get('year')}-${get('month')}-${get('day')}`
+}
+
+function orthodoxEaster(year: number): string {
+  const a = year % 4
+  const b = year % 7
+  const c = year % 19
+  const d = (19 * c + 15) % 30
+  const e = (2 * a + 4 * b - d + 34) % 7
+  const julianMonth = Math.floor((d + e + 114) / 31)
+  const julianDay = ((d + e + 114) % 31) + 1
+  const gregorianOffset = Math.floor(year / 100) - Math.floor(year / 400) - 2
+  return ymdFromUtcDate(new Date(Date.UTC(year, julianMonth - 1, julianDay + gregorianOffset)))
+}
+
+const FIXED_HOLIDAYS: Record<string, string> = {
+  '01-01': 'Anul Nou', '01-02': 'A doua zi de Anul Nou', '01-06': 'Boboteaza', '01-07': 'Sf. Ioan',
+  '01-24': 'Ziua Unirii Principatelor Române', '05-01': 'Ziua Muncii', '06-01': 'Ziua Copilului',
+  '08-15': 'Adormirea Maicii Domnului', '11-30': 'Sf. Andrei', '12-01': 'Ziua Națională a României',
+  '12-25': 'Crăciunul', '12-26': 'A doua zi de Crăciun',
+}
+
+export function legalHolidayName(ymd: string): string | null {
+  const parts = partsFromYmd(ymd)
+  if (!parts) return null
+  const fixed = FIXED_HOLIDAYS[`${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`]
+  if (fixed) return fixed
+  const easter = orthodoxEaster(parts.year)
+  const movable: Record<string, string> = {
+    [addCalendarDays(easter, -2)]: 'Vinerea Mare',
+    [easter]: 'Prima zi de Paști',
+    [addCalendarDays(easter, 1)]: 'A doua zi de Paști',
+    [addCalendarDays(easter, 49)]: 'Prima zi de Rusalii',
+    [addCalendarDays(easter, 50)]: 'A doua zi de Rusalii',
+  }
+  return movable[ymd] ?? null
+}
+
+export function nonWorkingDayInfo(ymd: string) {
+  const parts = partsFromYmd(ymd)
+  if (!parts) throw new Error('Invalid date-only value')
+  const weekday = new Date(toUtcEpoch(parts)).getUTCDay()
+  const holiday = legalHolidayName(ymd)
+  if (holiday) return { nonWorking: true as const, kind: 'holiday' as const, reason: holiday }
+  if (weekday === 6) return { nonWorking: true as const, kind: 'weekend' as const, reason: 'sâmbătă' }
+  if (weekday === 0) return { nonWorking: true as const, kind: 'weekend' as const, reason: 'duminică' }
+  return { nonWorking: false as const, kind: null, reason: null }
+}
+
+export function previousWorkingDay(ymd: string): string {
+  let candidate = ymd
+  do candidate = addCalendarDays(candidate, -1)
+  while (nonWorkingDayInfo(candidate).nonWorking)
+  return candidate
+}
+
+export interface OperationalMilestone {
+  day: 20 | 21 | 22
+  date: string
+  operationalDate: string
+  nonWorkingReason: string
+  dueToday: boolean
+}
+
+export function operationalMilestones(depositYmd: string, todayYmd = bucharestToday()): OperationalMilestone[] {
+  const milestones = ([20, 21, 22] as const).map((day) => ({ day, date: addCalendarDays(depositYmd, day - 1) }))
+  return milestones.flatMap(({ day, date }) => {
+    const info = nonWorkingDayInfo(date)
+    if (!info.nonWorking) return []
+    const operationalDate = previousWorkingDay(date)
+    return [{ day, date, operationalDate, nonWorkingReason: info.reason, dueToday: operationalDate === todayYmd }]
+  })
 }
 
 export type QuarantineKind = 'in_quarantine' | 'tomorrow' | 'today' | 'expired'
