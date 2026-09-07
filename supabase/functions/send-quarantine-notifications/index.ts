@@ -27,7 +27,22 @@ function isRpcTrue(value: unknown): boolean {
   return value === true || value === "true" || value === 1 || value === "1";
 }
 
-function content(day: number, name: string, room: string) {
+function formatYmd(value: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value ?? "");
+  return match ? `${match[3]}.${match[2]}.${match[1]}` : value;
+}
+
+function content(item: any) {
+  const day = Number(item.quarantine_day);
+  const name = String(item.nume_complet);
+  const room = String(item.camera);
+  if (item.is_early) {
+    const date = formatYmd(String(item.milestone_date));
+    const reason = String(item.non_working_reason || "zi nelucrătoare");
+    if (day === 20) return { title: "Atenție – Ziua 20 nelucrătoare", body: `${name}, camera ${room}: Ziua 20 cade ${reason} (${date}). Tratați astăzi cazul.` };
+    if (day === 21) return { title: "Atenție – expirare în zi nelucrătoare", body: `${name}, camera ${room}: Ziua 21 cade ${reason} (${date}). Tratați astăzi expirarea carantinei.` };
+    return { title: "Atenție – regim provizoriu", body: `${name}, camera ${room}: Ziua 22 cade ${reason} (${date}). Tratați astăzi aplicarea regimului provizoriu.` };
+  }
   if (day === 20) return { title: `Carantină: ${name}`, body: `Camera ${room} – carantina expiră mâine.` };
   if (day === 21) return { title: "Carantină expiră astăzi", body: `${name}, camera ${room}, împlinește astăzi 21 de zile.` };
   return { title: "Aplicare regim provizoriu", body: `${name}, camera ${room} – carantina s-a încheiat ieri; astăzi este Ziua 22.` };
@@ -77,8 +92,8 @@ Deno.serve(async (req: Request) => {
       continue;
     }
 
-    const message = content(item.quarantine_day, item.nume_complet, item.camera);
-    const payload = JSON.stringify({ ...message, url: "/regim/#/alerte", tag: `regim-${item.ppl_id}-${item.quarantine_day}-${item.notification_date}` });
+    const message = content(item);
+    const payload = JSON.stringify({ ...message, url: "/regim/#/alerte", tag: `regim-${item.ppl_id}-${item.quarantine_day}-${item.notification_date}`, milestoneDate: item.milestone_date, early: Boolean(item.is_early) });
     let delivered = 0;
     const errors: string[] = [];
 
