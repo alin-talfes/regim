@@ -17,9 +17,9 @@ export async function getMyProfile() {
 export async function listPpl(): Promise<PplRow[]> {
   const { data, error } = await supabase
     .from('ppl')
-    .select('id,nume_complet,camera,situatie_juridica,data_depunerii,data_expirarii,created_at,created_by,updated_at,updated_by,deleted_at,deleted_by')
+    .select('id,nume_complet,camera,situatie_juridica,data_depunerii,data_aplicarii_regimului_provizoriu,created_at,created_by,updated_at,updated_by,deleted_at,deleted_by')
     .is('deleted_at', null)
-    .order('data_expirarii', { ascending: true })
+    .order('data_aplicarii_regimului_provizoriu', { ascending: true })
   if (error) throw error
   return (data ?? []) as PplRow[]
 }
@@ -27,7 +27,7 @@ export async function listPpl(): Promise<PplRow[]> {
 export async function getPpl(id: string): Promise<PplRow | null> {
   const { data, error } = await supabase
     .from('ppl')
-    .select('id,nume_complet,camera,situatie_juridica,data_depunerii,data_expirarii,created_at,created_by,updated_at,updated_by,deleted_at,deleted_by')
+    .select('id,nume_complet,camera,situatie_juridica,data_depunerii,data_aplicarii_regimului_provizoriu,created_at,created_by,updated_at,updated_by,deleted_at,deleted_by')
     .eq('id', id)
     .maybeSingle()
   if (error) throw error
