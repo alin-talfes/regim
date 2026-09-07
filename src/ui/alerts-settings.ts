@@ -36,7 +36,7 @@ export async function renderSettingsPage() {
       <section class="settings-card">
         <div class="setting-row"><div><strong>Notificări</strong><span>Activează sau dezactivează toate alertele.</span></div><label class="switch"><input id="notif-enabled" type="checkbox" ${prefs.enabled ? 'checked' : ''}/><span></span></label></div>
         <div class="setting-block"><strong>Zile notificare</strong>
-          ${[20,21,22].map((day) => `<label class="check-row"><input class="day-check" type="checkbox" value="${day}" ${prefs.notification_days.includes(day) ? 'checked' : ''}/><span>Ziua ${day}${day === 20 ? ' – expiră mâine' : day === 21 ? ' – expiră astăzi' : ' – expirată'}</span></label>`).join('')}
+          ${[20,21,22].map((day) => `<label class="check-row"><input class="day-check" type="checkbox" value="${day}" ${prefs.notification_days.includes(day) ? 'checked' : ''}/><span>Ziua ${day}${day === 20 ? ' – expiră mâine' : day === 21 ? ' – expiră astăzi' : ' – aplicare regim provizoriu'}</span></label>`).join('')}
         </div>
         <label>Ora notificării<input id="notif-time" type="time" value="${prefs.notification_time.slice(0,5)}" /></label>
         <div class="timezone-note">Timezone: Europe/Bucharest</div>
