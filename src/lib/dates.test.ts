@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addCalendarDays, formatYmd, maskDateInput, parseDisplayDate, quarantineDay, quarantineExpiry, quarantineState } from './dates'
+import { addCalendarDays, formatYmd, maskDateInput, parseDisplayDate, provisionalRegimeDate, quarantineDay, quarantineExpiry, quarantineState } from './dates'
 
 describe('quarantine business rule', () => {
   const deposit = '2026-09-01'
@@ -10,7 +10,8 @@ describe('quarantine business rule', () => {
     expect(quarantineDay(deposit, '2026-09-21')).toBe(21)
     expect(quarantineDay(deposit, '2026-09-22')).toBe(22)
   })
-  it('expires on deposit + 20 calendar days', () => expect(quarantineExpiry(deposit)).toBe('2026-09-21'))
+  it('keeps day 21 at deposit + 20 calendar days', () => expect(quarantineExpiry(deposit)).toBe('2026-09-21'))
+  it('applies provisional regime on day 22, deposit + 21 calendar days', () => expect(provisionalRegimeDate(deposit)).toBe('2026-09-22'))
   it('labels status correctly', () => {
     expect(quarantineState(deposit, '2026-09-20').label).toBe('Expiră mâine')
     expect(quarantineState(deposit, '2026-09-21').label).toBe('Expiră astăzi')
@@ -23,6 +24,9 @@ describe('calendar edges', () => {
   it('handles leap February', () => expect(addCalendarDays('2028-02-10', 20)).toBe('2028-03-01'))
   it('handles non-leap February', () => expect(addCalendarDays('2027-02-10', 20)).toBe('2027-03-02'))
   it('crosses year end', () => expect(addCalendarDays('2026-12-20', 20)).toBe('2027-01-09'))
+  it('calculates day 22 across month end', () => expect(provisionalRegimeDate('2026-01-20')).toBe('2026-02-10'))
+  it('calculates day 22 across leap February', () => expect(provisionalRegimeDate('2028-02-10')).toBe('2028-03-02'))
+  it('calculates day 22 across year end', () => expect(provisionalRegimeDate('2026-12-20')).toBe('2027-01-10'))
 })
 
 describe('DD.MM.YYYY parser and mask', () => {
