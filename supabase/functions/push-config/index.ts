@@ -73,6 +73,7 @@ Deno.serve(async (req: Request) => {
     const stored = await admin.rpc("store_vapid_keys", { p_public_key: generated.publicKey, p_private_key: generated.privateKey });
     if (stored.error) return json(req, { error: "Push configuration unavailable" }, 500);
 
+    // Read back the authoritative key. A concurrent request may have won the Vault lock.
     const reread = await admin.rpc("get_vapid_public_key");
     if (reread.error || !reread.data) return json(req, { error: "Push configuration unavailable" }, 500);
     publicKey = reread.data as string;
