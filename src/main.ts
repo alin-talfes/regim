@@ -9,8 +9,6 @@ import { renderEvidencePage } from './ui/evidence'
 import { renderAddPage, renderDetailsPage } from './ui/ppl-form'
 import { invalidatePpl, loadPpl } from './ui/store'
 
-// The module bundle has executed successfully. Mark boot as ready immediately so the
-// static HTML fallback can never overwrite a running app while auth/network work continues.
 document.documentElement.dataset.regimReady = '1'
 
 const app = document.querySelector<HTMLDivElement>('#app')!
@@ -59,8 +57,8 @@ async function renderLogin(message = '') {
 
 async function renderShell() {
   const rows = await loadPpl().catch(() => [])
-  const { quarantineState } = await import('./lib/dates')
-  const alerts = rows.filter((row) => quarantineState(row.data_depunerii).day >= 20).length
+  const { operationalMilestones, quarantineState } = await import('./lib/dates')
+  const alerts = rows.filter((row) => quarantineState(row.data_depunerii).day >= 20 || operationalMilestones(row.data_depunerii).some((m) => m.dueToday)).length
   const [top] = route()
   app.innerHTML = `<div class="app-shell">
     <header class="topbar"><div><div class="topbar-brand">REGIM</div><div class="topbar-subtitle">Evidență carantină</div></div><button class="icon-btn" id="logout-btn" type="button" aria-label="Deconectare">${icon('logout')}</button></header>
@@ -119,7 +117,6 @@ async function renderCurrentRoute() {
 }
 
 async function init() {
-  // Service worker registration must never block first paint/auth rendering.
   void registerServiceWorker().catch(() => undefined)
   const { data } = await supabase.auth.getSession(); session = data.session
   supabase.auth.onAuthStateChange((_event: AuthChangeEvent, nextSession: Session | null) => { session = nextSession; if (!nextSession) invalidatePpl(); queueMicrotask(() => void renderCurrentRoute()) })
@@ -137,7 +134,6 @@ async function init() {
 }
 
 void init().catch(async () => {
-  // If auth bootstrap itself fails, show the login surface instead of leaving a blank/fallback screen.
   session = null
   await renderLogin('Aplicația nu a putut inițializa sesiunea. Reîncearcă autentificarea.')
 })
