@@ -16,7 +16,7 @@ export function pplCard(row: PplRow) {
     <div class="ppl-card-grid">
       <div><span>Depunere</span><strong>${formatYmd(row.data_depunerii)}</strong></div>
       <div><span>Ziua curentă</span><strong>Ziua ${state.day}</strong></div>
-      <div><span>Expirare</span><strong>${formatYmd(row.data_expirarii)}</strong></div>
+      <div><span>Data aplicării regimului provizoriu</span><strong>${formatYmd(row.data_aplicarii_regimului_provizoriu)}</strong></div>
     </div>
   </article>`
 }
