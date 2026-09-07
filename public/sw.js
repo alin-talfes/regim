@@ -1,4 +1,4 @@
-const CACHE = 'regim-shell-v1';
+const CACHE = 'regim-shell-v2';
 const BASE = '/regim/';
 const PRECACHE = [BASE, `${BASE}manifest.webmanifest`, `${BASE}icons/icon-192.png`, `${BASE}icons/icon-512.png`];
 
