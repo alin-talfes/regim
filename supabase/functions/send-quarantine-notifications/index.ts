@@ -25,7 +25,7 @@ function safeMessage(value: unknown): string {
 function content(day: number, name: string, room: string) {
   if (day === 20) return { title: `Carantină: ${name}`, body: `Camera ${room} – carantina expiră mâine.` };
   if (day === 21) return { title: "Carantină expiră astăzi", body: `${name}, camera ${room}, împlinește astăzi 21 de zile.` };
-  return { title: "Carantină expirată", body: `${name}, camera ${room} – perioada de 21 de zile s-a împlinit ieri.` };
+  return { title: "Aplicare regim provizoriu", body: `${name}, camera ${room} – carantina s-a încheiat ieri; astăzi este Ziua 22.` };
 }
 
 Deno.serve(async (req: Request) => {
