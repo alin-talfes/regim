@@ -67,7 +67,7 @@ export function sortPpl(rows: PplRow[]): PplRow[] {
     if (kind === 'tomorrow') return 2
     return 3
   }
-  return [...rows].sort((a, b) => rank(a) - rank(b) || a.data_expirarii.localeCompare(b.data_expirarii) || a.nume_complet.localeCompare(b.nume_complet, 'ro'))
+  return [...rows].sort((a, b) => rank(a) - rank(b) || a.data_aplicarii_regimului_provizoriu.localeCompare(b.data_aplicarii_regimului_provizoriu) || a.nume_complet.localeCompare(b.nume_complet, 'ro'))
 }
 
 export function statusClass(kind: ReturnType<typeof quarantineState>['kind']) {
