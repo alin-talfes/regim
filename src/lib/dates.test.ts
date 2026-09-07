@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addCalendarDays, formatYmd, maskDateInput, parseDisplayDate, provisionalRegimeDate, quarantineDay, quarantineExpiry, quarantineState } from './dates'
+import { addCalendarDays, formatYmd, legalHolidayName, maskDateInput, nonWorkingDayInfo, operationalMilestones, parseDisplayDate, previousWorkingDay, provisionalRegimeDate, quarantineDay, quarantineExpiry, quarantineState } from './dates'
 
 describe('quarantine business rule', () => {
   const deposit = '2026-09-01'
@@ -16,6 +16,36 @@ describe('quarantine business rule', () => {
     expect(quarantineState(deposit, '2026-09-20').label).toBe('Expiră mâine')
     expect(quarantineState(deposit, '2026-09-21').label).toBe('Expiră astăzi')
     expect(quarantineState(deposit, '2026-09-22').label).toBe('Expirată de 1 zi')
+  })
+})
+
+describe('non-working operational alerts', () => {
+  it('detects weekend and moves alerts to previous working day', () => {
+    const milestones = operationalMilestones('2026-08-23', '2026-09-11')
+    expect(milestones).toEqual([
+      { day: 21, date: '2026-09-12', operationalDate: '2026-09-11', nonWorkingReason: 'sâmbătă', dueToday: true },
+      { day: 22, date: '2026-09-13', operationalDate: '2026-09-11', nonWorkingReason: 'duminică', dueToday: true },
+    ])
+  })
+
+  it('detects fixed Romanian legal holidays', () => {
+    expect(legalHolidayName('2026-12-25')).toBe('Crăciunul')
+    expect(nonWorkingDayInfo('2026-12-25').nonWorking).toBe(true)
+    expect(previousWorkingDay('2026-12-25')).toBe('2026-12-24')
+  })
+
+  it('detects Orthodox movable legal holidays', () => {
+    expect(legalHolidayName('2026-04-10')).toBe('Vinerea Mare')
+    expect(legalHolidayName('2026-04-12')).toBe('Prima zi de Paști')
+    expect(legalHolidayName('2026-04-13')).toBe('A doua zi de Paști')
+    expect(legalHolidayName('2026-05-31')).toBe('Prima zi de Rusalii')
+    expect(legalHolidayName('2026-06-01')).toBe('Ziua Copilului')
+  })
+
+  it('moves Christmas weekend milestones to the last working day', () => {
+    const milestones = operationalMilestones('2026-12-05', '2026-12-24')
+    expect(milestones.find((m) => m.day === 21)?.operationalDate).toBe('2026-12-24')
+    expect(milestones.find((m) => m.day === 22)?.operationalDate).toBe('2026-12-24')
   })
 })
 
