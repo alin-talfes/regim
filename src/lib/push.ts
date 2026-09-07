@@ -10,6 +10,13 @@ function base64UrlToArrayBuffer(base64Url: string): ArrayBuffer {
   return bytes.buffer as ArrayBuffer
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new Error(message)), ms)
+    promise.then((value) => { window.clearTimeout(timer); resolve(value) }, (error) => { window.clearTimeout(timer); reject(error) })
+  })
+}
+
 export function isIos(): boolean {
   return /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 }
@@ -24,15 +31,21 @@ export function pushSupported(): boolean {
 
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (!('serviceWorker' in navigator)) return null
-  const registration = await navigator.serviceWorker.register(`${APP_BASE}sw.js`, { scope: APP_BASE })
-  void registration.update()
+  const existing = await withTimeout(navigator.serviceWorker.getRegistration(APP_BASE), 3000, 'Service worker lookup timed out').catch(() => undefined)
+  const registration = existing ?? await withTimeout(
+    navigator.serviceWorker.register(`${APP_BASE}sw.js`, { scope: APP_BASE, updateViaCache: 'none' }),
+    6000,
+    'Service worker registration timed out',
+  )
+  void registration.update().catch(() => undefined)
   return registration
 }
 
 export async function currentPushSubscription(): Promise<PushSubscription | null> {
   if (!pushSupported()) return null
-  const registration = await navigator.serviceWorker.ready
-  return registration.pushManager.getSubscription()
+  const registration = await withTimeout(navigator.serviceWorker.getRegistration(APP_BASE), 3000, 'Service worker lookup timed out').catch(() => undefined)
+  if (!registration) return null
+  return withTimeout(registration.pushManager.getSubscription(), 3000, 'Push subscription lookup timed out').catch(() => null)
 }
 
 export async function enablePush(): Promise<void> {
@@ -43,13 +56,14 @@ export async function enablePush(): Promise<void> {
   const { data: config, error: configError } = await supabase.functions.invoke('push-config', { method: 'POST' })
   if (configError || !config?.publicKey) throw configError ?? new Error('Push configuration unavailable')
 
-  const registration = await navigator.serviceWorker.ready
-  let subscription = await registration.pushManager.getSubscription()
+  const registration = await registerServiceWorker()
+  if (!registration) throw new Error('Service worker unavailable')
+  let subscription = await withTimeout(registration.pushManager.getSubscription(), 3000, 'Push subscription lookup timed out')
   if (!subscription) {
-    subscription = await registration.pushManager.subscribe({
+    subscription = await withTimeout(registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: base64UrlToArrayBuffer(config.publicKey),
-    })
+    }), 10000, 'Push subscription timed out')
   }
 
   const json = subscription.toJSON()
@@ -77,8 +91,6 @@ export async function disablePush(): Promise<void> {
     const { error } = await supabase.from('push_subscriptions').delete().eq('endpoint', endpoint)
     if (error) backendError = error
   } finally {
-    // Invalidate the browser endpoint even if the backend is temporarily unreachable.
-    // The worker will also disable a stale endpoint after a 404/410 response.
     await subscription.unsubscribe().catch(() => false)
   }
   if (backendError) throw backendError
