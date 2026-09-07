@@ -38,8 +38,8 @@ export async function renderSettingsPage() {
         <div class="setting-block"><strong>Zile notificare</strong>
           ${[20,21,22].map((day) => `<label class="check-row"><input class="day-check" type="checkbox" value="${day}" ${prefs.notification_days.includes(day) ? 'checked' : ''}/><span>Ziua ${day}${day === 20 ? ' – expiră mâine' : day === 21 ? ' – expiră astăzi' : ' – aplicare regim provizoriu'}</span></label>`).join('')}
         </div>
-        <label>Ora notificării<input id="notif-time" type="time" value="${prefs.notification_time.slice(0,5)}" /></label>
-        <div class="timezone-note">Timezone: Europe/Bucharest</div>
+        <label class="time-setting">Ora notificării<input id="notif-time" type="time" value="${prefs.notification_time.slice(0,5)}" /></label>
+        <div class="timezone-note">Fus orar: Europe/Bucharest</div>
         <button id="save-settings" class="btn btn-primary btn-block" type="button" ${navigator.onLine ? '' : 'disabled'}>Salvează setările</button>
       </section>
       <section class="settings-card push-card">
