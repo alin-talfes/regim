@@ -8,7 +8,7 @@ export interface PplRow {
   camera: Room
   situatie_juridica: LegalStatus
   data_depunerii: string
-  data_expirarii: string
+  data_aplicarii_regimului_provizoriu: string
   created_at: string
   created_by: string
   updated_at: string
