@@ -9,6 +9,10 @@ import { renderEvidencePage } from './ui/evidence'
 import { renderAddPage, renderDetailsPage } from './ui/ppl-form'
 import { invalidatePpl, loadPpl } from './ui/store'
 
+// The module bundle has executed successfully. Mark boot as ready immediately so the
+// static HTML fallback can never overwrite a running app while auth/network work continues.
+document.documentElement.dataset.regimReady = '1'
+
 const app = document.querySelector<HTMLDivElement>('#app')!
 let session: Session | null = null
 let rendering = false
@@ -115,7 +119,8 @@ async function renderCurrentRoute() {
 }
 
 async function init() {
-  try { await registerServiceWorker() } catch { /* best effort */ }
+  // Service worker registration must never block first paint/auth rendering.
+  void registerServiceWorker().catch(() => undefined)
   const { data } = await supabase.auth.getSession(); session = data.session
   supabase.auth.onAuthStateChange((_event: AuthChangeEvent, nextSession: Session | null) => { session = nextSession; if (!nextSession) invalidatePpl(); queueMicrotask(() => void renderCurrentRoute()) })
   window.addEventListener('hashchange', () => void renderCurrentRoute())
@@ -131,4 +136,8 @@ async function init() {
   await renderCurrentRoute()
 }
 
-void init()
+void init().catch(async () => {
+  // If auth bootstrap itself fails, show the login surface instead of leaving a blank/fallback screen.
+  session = null
+  await renderLogin('Aplicația nu a putut inițializa sesiunea. Reîncearcă autentificarea.')
+})
