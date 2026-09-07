@@ -1,0 +1,7 @@
+project_id = "regim"
+
+[functions.push-config]
+verify_jwt = true
+
+[functions.send-quarantine-notifications]
+verify_jwt = false
