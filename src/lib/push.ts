@@ -1,11 +1,13 @@
 import { APP_BASE } from './config'
 import { supabase } from './supabase'
 
-function base64UrlToUint8Array(base64Url: string): Uint8Array {
+function base64UrlToArrayBuffer(base64Url: string): ArrayBuffer {
   const padding = '='.repeat((4 - (base64Url.length % 4)) % 4)
   const base64 = (base64Url + padding).replace(/-/g, '+').replace(/_/g, '/')
   const raw = atob(base64)
-  return Uint8Array.from([...raw].map((char) => char.charCodeAt(0)))
+  const bytes = new Uint8Array(raw.length)
+  for (let index = 0; index < raw.length; index += 1) bytes[index] = raw.charCodeAt(index)
+  return bytes.buffer as ArrayBuffer
 }
 
 export function isIos(): boolean {
@@ -46,7 +48,7 @@ export async function enablePush(): Promise<void> {
   if (!subscription) {
     subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: base64UrlToUint8Array(config.publicKey),
+      applicationServerKey: base64UrlToArrayBuffer(config.publicKey),
     })
   }
 
