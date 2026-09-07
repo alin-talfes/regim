@@ -3,13 +3,11 @@ name: Build and deploy REGIM
 on:
   push:
     branches: [main]
-  workflow_run:
-    workflows: ["pages build and deployment"]
-    types: [completed]
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: read
   pages: write
   id-token: write
 
@@ -19,7 +17,6 @@ concurrency:
 
 jobs:
   build:
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -43,13 +40,47 @@ jobs:
           path: ./dist
 
   deploy:
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     needs: build
     steps:
+      - name: Wait for legacy Pages deployment if enabled
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          found=0
+          for attempt in {1..36}; do
+            runs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${GITHUB_SHA}&per_page=20")"
+            status="$(jq -r '[.workflow_runs[] | select(.path == "dynamic/pages/pages-build-deployment")][0].status // ""' <<<"$runs")"
+            conclusion="$(jq -r '[.workflow_runs[] | select(.path == "dynamic/pages/pages-build-deployment")][0].conclusion // ""' <<<"$runs")"
+
+            if [[ -n "$status" ]]; then
+              found=1
+              echo "Legacy Pages workflow: status=$status conclusion=$conclusion"
+              if [[ "$status" == "completed" ]]; then
+                if [[ "$conclusion" == "success" ]]; then
+                  exit 0
+                fi
+                echo "Legacy Pages workflow failed with conclusion: $conclusion"
+                exit 1
+              fi
+            elif (( attempt >= 6 )); then
+              echo "No legacy Pages workflow detected; continuing with Actions deployment."
+              exit 0
+            fi
+
+            sleep 5
+          done
+
+          if (( found == 1 )); then
+            echo "Timed out waiting for legacy Pages deployment."
+            exit 1
+          fi
+          echo "No legacy Pages workflow detected."
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v5
