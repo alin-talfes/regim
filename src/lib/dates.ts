@@ -60,6 +60,10 @@ export function quarantineExpiry(depositYmd: string): string {
   return addCalendarDays(depositYmd, 20)
 }
 
+export function provisionalRegimeDate(depositYmd: string): string {
+  return addCalendarDays(depositYmd, 21)
+}
+
 export function calendarDayDifference(fromYmd: string, toYmd: string): number {
   const from = partsFromYmd(fromYmd); const to = partsFromYmd(toYmd)
   if (!from || !to) throw new Error('Invalid date-only value')
