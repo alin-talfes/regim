@@ -1,5 +1,5 @@
 import { archivePpl, createPpl, getPpl, updatePpl, type PplInput } from '../lib/api'
-import { bucharestToday, formatYmd, isFutureDate, maskDateInput, parseDisplayDate, quarantineExpiry } from '../lib/dates'
+import { bucharestToday, formatYmd, isFutureDate, maskDateInput, parseDisplayDate, provisionalRegimeDate, quarantineExpiry } from '../lib/dates'
 import { ROOMS, type LegalStatus, type Room } from '../lib/types'
 import { escapeHtml, friendlyError, go, icon, refreshRoute, toast } from './base'
 import { invalidatePpl } from './store'
@@ -37,9 +37,10 @@ function bindDateField(onChange?: () => void) {
     if (input.value.length === 10 && !ymd) error.textContent = 'Data introdusă nu este validă.'
     if (ymd && isFutureDate(ymd)) error.textContent = 'Data depunerii nu poate fi în viitor.'
     if (ymd && !isFutureDate(ymd)) {
-      const expiry = quarantineExpiry(ymd)
+      const day21 = quarantineExpiry(ymd)
+      const provisionalDate = provisionalRegimeDate(ymd)
       preview.hidden = false
-      preview.innerHTML = `<div><span>Ziua 21</span><strong>${formatYmd(expiry)}</strong></div><div><span>Data expirării carantinei</span><strong>${formatYmd(expiry)}</strong></div>`
+      preview.innerHTML = `<div><span>Ziua 21</span><strong>${formatYmd(day21)}</strong></div><div><span>Data aplicării regimului provizoriu</span><strong>${formatYmd(provisionalDate)}</strong></div>`
     } else preview.hidden = true
     onChange?.()
   }
