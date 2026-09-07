@@ -1,5 +1,5 @@
 import { getNotificationPreferences, updateNotificationPreferences } from '../lib/api'
-import { quarantineState } from '../lib/dates'
+import { operationalMilestones, quarantineState } from '../lib/dates'
 import { currentPushSubscription, disablePush, enablePush, isIos, isStandalone, pushSupported } from '../lib/push'
 import { friendlyError, refreshRoute, sortPpl, toast } from './base'
 import { bindPplCards, pplCard } from './evidence'
@@ -10,13 +10,16 @@ export async function renderAlertsPage() {
   page.innerHTML = '<div class="loading">Se încarcă…</div>'
   try {
     const rows = sortPpl(await loadPpl())
+    const earlyRows = rows.filter((r) => operationalMilestones(r.data_depunerii).some((m) => m.dueToday))
+    const earlyIds = new Set(earlyRows.map((r) => r.id))
     const groups = [
-      { title: 'Expirate', rows: rows.filter((r) => quarantineState(r.data_depunerii).kind === 'expired') },
-      { title: 'Expiră astăzi', rows: rows.filter((r) => quarantineState(r.data_depunerii).kind === 'today') },
-      { title: 'Expiră mâine', rows: rows.filter((r) => quarantineState(r.data_depunerii).kind === 'tomorrow') },
+      { title: 'De tratat azi – zi nelucrătoare', rows: earlyRows },
+      { title: 'Expirate', rows: rows.filter((r) => !earlyIds.has(r.id) && quarantineState(r.data_depunerii).kind === 'expired') },
+      { title: 'Expiră astăzi', rows: rows.filter((r) => !earlyIds.has(r.id) && quarantineState(r.data_depunerii).kind === 'today') },
+      { title: 'Expiră mâine', rows: rows.filter((r) => !earlyIds.has(r.id) && quarantineState(r.data_depunerii).kind === 'tomorrow') },
     ]
-    page.innerHTML = `<section class="page-head"><div><h1>Alerte</h1><p>Carantine care necesită atenție.</p></div></section>
-      ${groups.map((group) => `<section class="alert-group"><div class="group-title"><h2>${group.title}</h2><span>${group.rows.length}</span></div>${group.rows.length ? `<div class="ppl-list">${group.rows.map(pplCard).join('')}</div>` : '<div class="empty-inline">Nicio persoană.</div>'}</section>`).join('')}`
+    page.innerHTML = `<section class="page-head"><div><h1>Alerte</h1><p>Carantine care necesită atenție în programul L–V.</p></div></section>
+      ${groups.map((group, index) => `<section class="alert-group ${index === 0 && group.rows.length ? 'alert-group-priority' : ''}"><div class="group-title"><h2>${group.title}</h2><span>${group.rows.length}</span></div>${group.rows.length ? `<div class="ppl-list">${group.rows.map(pplCard).join('')}</div>` : '<div class="empty-inline">Nicio persoană.</div>'}</section>`).join('')}`
     bindPplCards()
   } catch {
     page.innerHTML = '<div class="error-state">Alertele nu au putut fi încărcate.</div>'
@@ -38,6 +41,7 @@ export async function renderSettingsPage() {
         <div class="setting-block"><strong>Zile notificare</strong>
           ${[20,21,22].map((day) => `<label class="check-row"><input class="day-check" type="checkbox" value="${day}" ${prefs.notification_days.includes(day) ? 'checked' : ''}/><span>Ziua ${day}${day === 20 ? ' – expiră mâine' : day === 21 ? ' – expiră astăzi' : ' – aplicare regim provizoriu'}</span></label>`).join('')}
         </div>
+        <div class="operational-policy-note">Dacă Ziua 20, 21 sau 22 cade sâmbătă, duminică ori într-o sărbătoare legală, notificarea se trimite în ultima zi lucrătoare anterioară, la ora setată.</div>
         <label class="time-setting">Ora notificării<input id="notif-time" type="time" value="${prefs.notification_time.slice(0,5)}" /></label>
         <div class="timezone-note">Fus orar: Europe/Bucharest</div>
         <button id="save-settings" class="btn btn-primary btn-block" type="button" ${navigator.onLine ? '' : 'disabled'}>Salvează setările</button>
