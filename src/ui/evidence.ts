@@ -39,9 +39,9 @@ export function pplCard(row: PplRow, statusLabelOverride?: string) {
     <div class="ppl-card-grid">
       <div><span>Depunere</span><strong>${formatYmd(row.data_depunerii)}</strong></div>
       <div><span>Ziua curentă</span><strong>Ziua ${state.day}</strong></div>
-      <div><span>Data aplicării regimului provizoriu</span><strong>${formatYmd(row.data_aplicarii_regimului_provizoriu)}</strong></div>
+      <div><span>Data aplicării regimului</span><strong>${formatYmd(row.data_aplicarii_regimului_provizoriu)}</strong></div>
     </div>
-    ${anomaly ? '<div class="anomaly-note" role="alert"><strong>ATENȚIE</strong><span>Regimul provizoriu trebuia aplicat.</span></div>' : ''}
+    ${anomaly ? '<div class="anomaly-note" role="alert"><strong>ATENȚIE</strong><span>Regimul trebuia aplicat.</span></div>' : ''}
     ${operationalWarning(row)}
   </article>`
 }
