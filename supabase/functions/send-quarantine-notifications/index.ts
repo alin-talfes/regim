@@ -41,12 +41,12 @@ function content(item: any) {
     const reason = String(item.non_working_reason || "zi nelucrătoare");
     if (day === 20) return { title: "Atenție – Ziua 20 nelucrătoare", body: `${name}, camera ${room}: Ziua 20 cade ${reason} (${date}). Tratați astăzi cazul.` };
     if (day === 21) return { title: "Atenție – expirare în zi nelucrătoare", body: `${name}, camera ${room}: Ziua 21 cade ${reason} (${date}). Tratați astăzi expirarea carantinei.` };
-    return { title: "Atenție – regim provizoriu", body: `${name}, camera ${room}: Ziua 22 cade ${reason} (${date}). Tratați astăzi aplicarea regimului provizoriu.` };
+    return { title: "Atenție – aplicare regim", body: `${name}, camera ${room}: Ziua 22 cade ${reason} (${date}). Tratați astăzi aplicarea regimului.` };
   }
   if (day === 20) return { title: `Carantină: ${name}`, body: `Camera ${room} – carantina expiră mâine.` };
   if (day === 21) return { title: "Carantină expiră astăzi", body: `${name}, camera ${room}, împlinește astăzi 21 de zile.` };
-  if (day === 22) return { title: "Aplicare regim provizoriu", body: `${name}, camera ${room} – carantina s-a încheiat ieri; astăzi este Ziua 22.` };
-  return { title: "ATENȚIE – regim provizoriu restant", body: `${name}, camera ${room} – este Ziua 23. Regimul provizoriu trebuia aplicat ieri.` };
+  if (day === 22) return { title: "Aplicare regim astăzi", body: `${name}, camera ${room} – carantina s-a încheiat ieri; astăzi este Ziua 22.` };
+  return { title: "ATENȚIE – regim restant", body: `${name}, camera ${room} – este Ziua 23. Regimul trebuia aplicat ieri.` };
 }
 
 function groupedContent(items: any[]) {
