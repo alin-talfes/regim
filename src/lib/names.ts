@@ -1,5 +1,9 @@
 import type { PplRow } from './types'
 
+export function uppercasePersonName(value: string): string {
+  return value.toLocaleUpperCase('ro-RO')
+}
+
 export function normalizePersonName(value: string): string {
   const clean = value
     .normalize('NFD')
