@@ -1,10 +1,16 @@
+import { listRemovedPpl } from '../lib/api'
 import { APP_TIMEZONE } from '../lib/config'
 import { formatYmd, isAutoArchived, operationalMilestones, quarantineState } from '../lib/dates'
 import { ROOMS, type LegalStatus, type PplRow } from '../lib/types'
 import { LEGAL_LABELS, escapeHtml, go, icon, sortPpl, statusClass } from './base'
 import { invalidatePpl, loadPpl } from './store'
 
+function isArchivedRow(row: PplRow) {
+  return Boolean(row.deleted_at) || isAutoArchived(row.data_depunerii)
+}
+
 function operationalWarning(row: PplRow) {
+  if (row.deleted_at) return ''
   const state = quarantineState(row.data_depunerii)
   if (state.day > 22) return ''
   const milestones = operationalMilestones(row.data_depunerii).filter((item) => item.day >= Math.max(20, state.day))
@@ -18,7 +24,7 @@ function updatedClock() {
 
 export function pplCard(row: PplRow, statusLabelOverride?: string) {
   const state = quarantineState(row.data_depunerii)
-  const archived = isAutoArchived(row.data_depunerii)
+  const archived = isArchivedRow(row)
   const anomaly = !archived && state.day >= 23
   const statusLabel = archived ? 'Arhivat' : (statusLabelOverride ?? state.label)
   const statusCss = archived ? 'status status-archived' : statusClass(state.kind)
@@ -52,9 +58,10 @@ export async function renderEvidencePage() {
   const page = document.querySelector<HTMLDivElement>('#page')!
   page.innerHTML = '<div class="loading">Se încarcă…</div>'
   try {
-    const allRows = sortPpl(await loadPpl(true))
+    const [visibleRows, removedRows] = await Promise.all([loadPpl(true), listRemovedPpl()])
+    const allRows = sortPpl([...visibleRows, ...removedRows])
     const refreshedAt = updatedClock()
-    const activeRows = allRows.filter((row) => !isAutoArchived(row.data_depunerii))
+    const activeRows = allRows.filter((row) => !isArchivedRow(row))
     const states = activeRows.map((row) => quarantineState(row.data_depunerii))
     const counts = {
       in: states.filter((s) => s.kind === 'in_quarantine').length,
@@ -96,7 +103,7 @@ export async function renderEvidencePage() {
     const draw = () => {
       const filtered = allRows.filter((row) => {
         const state = quarantineState(row.data_depunerii)
-        const archived = isAutoArchived(row.data_depunerii)
+        const archived = isArchivedRow(row)
         const matchesArchive = status === 'archived' ? archived : !archived
         const matchesStatus = !status || status === 'archived' || state.kind === status
         return matchesArchive && matchesStatus && (!query || row.nume_complet.toLocaleLowerCase('ro').includes(query)) && (!room || row.camera === room) && (!legal || row.situatie_juridica === legal)
