@@ -85,7 +85,7 @@ export async function renderEvidencePage() {
         const state = quarantineState(row.data_depunerii)
         return (!query || row.nume_complet.toLocaleLowerCase('ro').includes(query)) && (!room || row.camera === room) && (!legal || row.situatie_juridica === legal) && (!status || state.kind === status)
       })
-      list.innerHTML = filtered.length ? filtered.map(pplCard).join('') : '<div class="empty-state"><strong>Niciun rezultat</strong><span>Modifică termenul de căutare sau filtrele.</span></div>'
+      list.innerHTML = filtered.length ? filtered.map((row) => pplCard(row)).join('') : '<div class="empty-state"><strong>Niciun rezultat</strong><span>Modifică termenul de căutare sau filtrele.</span></div>'
       const active = [room && `Camera ${room}`, legal && LEGAL_LABELS[legal as LegalStatus], status && ({ expired: 'Expirate', today: 'Expiră astăzi', tomorrow: 'Expiră mâine', in_quarantine: 'În carantină' } as Record<string,string>)[status]].filter(Boolean)
       chips.innerHTML = active.map((value) => `<span class="chip">${escapeHtml(value)}</span>`).join('')
       bindPplCards()
