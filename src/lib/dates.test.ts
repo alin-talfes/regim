@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addCalendarDays, alertState, formatYmd, legalHolidayName, maskDateInput, nonWorkingDayInfo, operationalMilestones, parseDisplayDate, previousWorkingDay, provisionalRegimeDate, quarantineDay, quarantineExpiry, quarantineState } from './dates'
+import { addCalendarDays, alertState, formatYmd, isAutoArchived, legalHolidayName, maskDateInput, nonWorkingDayInfo, operationalMilestones, parseDisplayDate, previousWorkingDay, provisionalRegimeDate, quarantineDay, quarantineExpiry, quarantineState } from './dates'
 
 describe('quarantine business rule', () => {
   const deposit = '2026-09-01'
@@ -17,12 +17,19 @@ describe('quarantine business rule', () => {
     expect(quarantineState(deposit, '2026-09-21').label).toBe('Expiră astăzi')
     expect(quarantineState(deposit, '2026-09-22').label).toBe('Expirată de 1 zi')
   })
-  it('classifies alert stages exactly on days 20, 21, 22 and 23+', () => {
+  it('classifies alert stages exactly on days 20, 21, 22, 23-30 and archives from day 31', () => {
     expect(alertState(deposit, '2026-09-20')).toEqual({ day: 20, kind: 'tomorrow', label: 'Expiră mâine' })
     expect(alertState(deposit, '2026-09-21')).toEqual({ day: 21, kind: 'today', label: 'Expiră astăzi' })
     expect(alertState(deposit, '2026-09-22')).toEqual({ day: 22, kind: 'provisional_today', label: 'De aplicat regim provizoriu astăzi' })
     expect(alertState(deposit, '2026-09-23')).toEqual({ day: 23, kind: 'expired', label: 'Expirat' })
+    expect(alertState(deposit, '2026-09-30')).toEqual({ day: 30, kind: 'expired', label: 'Expirat' })
+    expect(alertState(deposit, '2026-10-01')).toEqual({ day: 31, kind: 'archived', label: 'Arhivat' })
     expect(alertState(deposit, '2026-09-19')).toEqual({ day: 19, kind: 'none', label: '' })
+  })
+  it('auto-archives exactly from day 31', () => {
+    expect(isAutoArchived(deposit, '2026-09-30')).toBe(false)
+    expect(isAutoArchived(deposit, '2026-10-01')).toBe(true)
+    expect(isAutoArchived(deposit, '2026-10-15')).toBe(true)
   })
 })
 

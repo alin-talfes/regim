@@ -86,6 +86,10 @@ export function bucharestToday(now = new Date()): string {
   return `${get('year')}-${get('month')}-${get('day')}`
 }
 
+export function isAutoArchived(depositYmd: string, todayYmd = bucharestToday()): boolean {
+  return quarantineDay(depositYmd, todayYmd) >= 31
+}
+
 function orthodoxEaster(year: number): string {
   const a = year % 4
   const b = year % 7
@@ -171,10 +175,11 @@ export function quarantineState(depositYmd: string, todayYmd = bucharestToday())
   return { day, expiry, kind: 'in_quarantine' as const, label: 'În carantină' }
 }
 
-export type AlertKind = 'none' | 'tomorrow' | 'today' | 'provisional_today' | 'expired'
+export type AlertKind = 'none' | 'tomorrow' | 'today' | 'provisional_today' | 'expired' | 'archived'
 
 export function alertState(depositYmd: string, todayYmd = bucharestToday()) {
   const day = quarantineDay(depositYmd, todayYmd)
+  if (day >= 31) return { day, kind: 'archived' as const, label: 'Arhivat' }
   if (day === 20) return { day, kind: 'tomorrow' as const, label: 'Expiră mâine' }
   if (day === 21) return { day, kind: 'today' as const, label: 'Expiră astăzi' }
   if (day === 22) return { day, kind: 'provisional_today' as const, label: 'De aplicat regim provizoriu astăzi' }

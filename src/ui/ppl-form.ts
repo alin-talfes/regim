@@ -1,5 +1,5 @@
 import { archivePpl, createPpl, getPpl, updatePpl, type PplInput } from '../lib/api'
-import { bucharestToday, formatYmd, isFutureDate, maskDateInput, parseDisplayDate, provisionalRegimeDate, quarantineExpiry } from '../lib/dates'
+import { bucharestToday, formatYmd, isAutoArchived, isFutureDate, maskDateInput, parseDisplayDate, provisionalRegimeDate, quarantineExpiry } from '../lib/dates'
 import { ROOMS, type LegalStatus, type Room } from '../lib/types'
 import { escapeHtml, friendlyError, go, icon, refreshRoute, toast } from './base'
 import { invalidatePpl } from './store'
@@ -36,7 +36,7 @@ function formMarkup(values?: Partial<PplInput>, submitLabel = 'Adaugă PPL') {
   </form>`
 }
 
-function bindDateField(onChange?: () => void) {
+function bindDateField(onChange?: () => void, rejectArchivedDate = false) {
   const input = document.querySelector<HTMLInputElement>('#field-date')!
   const picker = document.querySelector<HTMLInputElement>('#field-date-picker')!
   const error = document.querySelector<HTMLDivElement>('#date-error')!
@@ -48,6 +48,7 @@ function bindDateField(onChange?: () => void) {
     error.textContent = ''
     if (input.value.length === 10 && !ymd) error.textContent = 'Data introdusă nu este validă.'
     if (ymd && isFutureDate(ymd)) error.textContent = 'Data depunerii nu poate fi în viitor.'
+    if (ymd && !isFutureDate(ymd) && rejectArchivedDate && isAutoArchived(ymd)) error.textContent = 'Nu poți adăuga o persoană aflată deja în Ziua 31 sau ulterior. Aceasta aparține arhivei.'
     if (ymd && !isFutureDate(ymd)) {
       const day21 = quarantineExpiry(ymd)
       const provisionalDate = provisionalRegimeDate(ymd)
@@ -66,7 +67,7 @@ function bindDateField(onChange?: () => void) {
   update()
 }
 
-function readPplForm(): { input: PplInput | null; error?: string } {
+function readPplForm(rejectArchivedDate = false): { input: PplInput | null; error?: string } {
   const name = document.querySelector<HTMLInputElement>('#field-name')!.value.trim()
   const room = document.querySelector<HTMLSelectElement>('#field-room')!.value as Room
   const legal = document.querySelector<HTMLSelectElement>('#field-legal')!.value as LegalStatus
@@ -76,18 +77,19 @@ function readPplForm(): { input: PplInput | null; error?: string } {
   if (!['arestat_preventiv', 'condamnat_definitiv'].includes(legal)) return { input: null, error: 'Selectează situația juridică.' }
   if (!ymd) return { input: null, error: 'Introdu o dată validă în format zz.ll.aaaa.' }
   if (isFutureDate(ymd)) return { input: null, error: 'Data depunerii nu poate fi în viitor.' }
+  if (rejectArchivedDate && isAutoArchived(ymd)) return { input: null, error: 'Nu poți adăuga o persoană aflată deja în Ziua 31 sau ulterior. Aceasta aparține arhivei.' }
   return { input: { nume_complet: name, camera: room, situatie_juridica: legal, data_depunerii: ymd } }
 }
 
 export async function renderAddPage() {
   const page = document.querySelector<HTMLDivElement>('#page')!
-  page.innerHTML = `<section class="page-head"><div><h1>Adaugă PPL</h1><p>Completează datele de evidență.</p></div></section>${formMarkup()}`
-  bindDateField()
+  page.innerHTML = `<section class="page-head"><div><h1>Adaugă PPL</h1><p>Completează datele de evidență.</p></div></section><div class="operational-policy-note"><strong>Regulă arhivare:</strong> nu poți adăuga o persoană care, raportat la data depunerii, este deja în Ziua 31 sau ulterior. Începând cu Ziua 31, persoanele existente sunt considerate arhivate și nu mai apar implicit în evidența activă.</div>${formMarkup()}`
+  bindDateField(undefined, true)
   const form = document.querySelector<HTMLFormElement>('#ppl-form')!
   form.addEventListener('submit', async (event) => {
     event.preventDefault()
     if (!navigator.onLine) return toast('Fără conexiune. Salvarea este dezactivată.', 'error')
-    const result = readPplForm()
+    const result = readPplForm(true)
     if (!result.input) return toast(result.error!, 'error')
     const button = document.querySelector<HTMLButtonElement>('#form-submit')!
     button.disabled = true; button.textContent = 'Se salvează…'
