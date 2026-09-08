@@ -166,7 +166,8 @@ export type QuarantineKind = 'in_quarantine' | 'tomorrow' | 'today' | 'expired'
 export function quarantineState(depositYmd: string, todayYmd = bucharestToday()) {
   const day = quarantineDay(depositYmd, todayYmd)
   const expiry = quarantineExpiry(depositYmd)
-  if (day >= 22) {
+  if (day === 22) return { day, expiry, kind: 'expired' as const, label: 'Aplicare regim astăzi' }
+  if (day >= 23) {
     const expiredDays = day - 21
     return { day, expiry, kind: 'expired' as const, label: `Expirată de ${expiredDays} ${expiredDays === 1 ? 'zi' : 'zile'}` }
   }
@@ -182,7 +183,7 @@ export function alertState(depositYmd: string, todayYmd = bucharestToday()) {
   if (day >= 31) return { day, kind: 'archived' as const, label: 'Arhivat' }
   if (day === 20) return { day, kind: 'tomorrow' as const, label: 'Expiră mâine' }
   if (day === 21) return { day, kind: 'today' as const, label: 'Expiră astăzi' }
-  if (day === 22) return { day, kind: 'provisional_today' as const, label: 'De aplicat regim provizoriu astăzi' }
+  if (day === 22) return { day, kind: 'provisional_today' as const, label: 'Aplicare regim astăzi' }
   if (day >= 23) return { day, kind: 'expired' as const, label: 'Expirat' }
   return { day, kind: 'none' as const, label: '' }
 }
