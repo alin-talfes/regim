@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { LegalStatus, NotificationPreferences, PplRow, Room } from './types'
+import type { LegalStatus, NotificationPreferences, PplHistoryRow, PplRow, Room } from './types'
 
 export interface PplInput {
   nume_complet: string
@@ -32,6 +32,12 @@ export async function getPpl(id: string): Promise<PplRow | null> {
     .maybeSingle()
   if (error) throw error
   return data as PplRow | null
+}
+
+export async function getPplHistory(id: string): Promise<PplHistoryRow[]> {
+  const { data, error } = await supabase.rpc('ppl_history', { p_id: id })
+  if (error) throw error
+  return (data ?? []) as PplHistoryRow[]
 }
 
 export async function createPpl(input: PplInput): Promise<string> {
