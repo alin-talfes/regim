@@ -1,6 +1,6 @@
 import { archivePpl, createPpl, getPpl, getPplHistory, listRemovedPpl, updatePpl, type PplInput } from '../lib/api'
 import { alertState, bucharestToday, formatYmd, isAutoArchived, isFutureDate, maskDateInput, parseDisplayDate, provisionalRegimeDate, quarantineExpiry } from '../lib/dates'
-import { findPotentialDuplicates, type DuplicateMatch } from '../lib/names'
+import { findPotentialDuplicates, uppercasePersonName, type DuplicateMatch } from '../lib/names'
 import { ROOMS, type LegalStatus, type PplRow, type Room } from '../lib/types'
 import { LEGAL_LABELS, escapeHtml, friendlyError, go, icon, refreshRoute, toast } from './base'
 import { pplHistoryMarkup, pplRecordMetaMarkup } from './ppl-history'
@@ -21,7 +21,7 @@ function operationalLabel(ymd: string) {
 
 function formMarkup(values?: Partial<PplInput>, submitLabel = 'Adaugă PPL') {
   return `<form id="ppl-form" class="form-card" novalidate>
-    <label>Nume complet<input id="field-name" type="text" autocomplete="off" maxlength="160" value="${escapeHtml(values?.nume_complet ?? '')}" required /></label>
+    <label>Nume complet<input id="field-name" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="160" value="${escapeHtml(uppercasePersonName(values?.nume_complet ?? ''))}" required /></label>
     <label>Camera<select id="field-room" required>${roomOptions(values?.camera ?? '')}</select></label>
     <label>Situație juridică<select id="field-legal" required>${legalOptions(values?.situatie_juridica ?? '')}</select></label>
     <label>Data depunerii în penitenciar
@@ -53,6 +53,18 @@ function archivedReadOnlyMarkup(row: PplRow) {
       <div><span>Data depunerii</span><strong>${escapeHtml(formatYmd(row.data_depunerii))}</strong></div>
     </div>
   </section>`
+}
+
+function bindNameField(onChange?: () => void) {
+  const input = document.querySelector<HTMLInputElement>('#field-name')!
+  input.addEventListener('input', () => {
+    const start = input.selectionStart
+    const end = input.selectionEnd
+    input.value = uppercasePersonName(input.value)
+    if (start !== null && end !== null) input.setSelectionRange(start, end)
+    onChange?.()
+  })
+  input.value = uppercasePersonName(input.value)
 }
 
 function bindDateField(onChange?: () => void, rejectArchivedDate = false) {
@@ -87,7 +99,7 @@ function bindDateField(onChange?: () => void, rejectArchivedDate = false) {
 }
 
 function readPplForm(rejectArchivedDate = false): { input: PplInput | null; error?: string } {
-  const name = document.querySelector<HTMLInputElement>('#field-name')!.value.trim()
+  const name = uppercasePersonName(document.querySelector<HTMLInputElement>('#field-name')!.value).trim()
   const room = document.querySelector<HTMLSelectElement>('#field-room')!.value as Room
   const legal = document.querySelector<HTMLSelectElement>('#field-legal')!.value as LegalStatus
   const ymd = parseDisplayDate(document.querySelector<HTMLInputElement>('#field-date')!.value)
@@ -139,6 +151,7 @@ async function confirmDateChange(oldDate: string, newDate: string) {
 export async function renderAddPage() {
   const page = document.querySelector<HTMLDivElement>('#page')!
   page.innerHTML = `<section class="page-head"><div><h1>Adaugă PPL</h1><p>Completează datele de evidență.</p></div></section><div class="operational-policy-note"><strong>Regulă arhivare:</strong> nu poți adăuga o persoană care, raportat la data depunerii, este deja în Ziua 31 sau ulterior. Începând cu Ziua 31, persoanele existente sunt considerate arhivate și nu mai apar implicit în evidența activă.</div>${formMarkup()}${duplicateDialogMarkup()}`
+  bindNameField()
   bindDateField(undefined, true)
   const form = document.querySelector<HTMLFormElement>('#ppl-form')!
   form.addEventListener('submit', async (event) => {
@@ -180,7 +193,7 @@ export async function renderDetailsPage(id: string) {
   const history = await getPplHistory(id).catch(() => { historyUnavailable = true; return [] })
   const manuallyRemoved = Boolean(row.deleted_at)
   const archived = manuallyRemoved || isAutoArchived(row.data_depunerii)
-  const original = { nume_complet: row.nume_complet, camera: row.camera, situatie_juridica: row.situatie_juridica, data_depunerii: row.data_depunerii }
+  const original = { nume_complet: uppercasePersonName(row.nume_complet), camera: row.camera, situatie_juridica: row.situatie_juridica, data_depunerii: row.data_depunerii }
   page.innerHTML = `
     <section class="detail-head"><button class="icon-btn back-btn" id="back-btn" aria-label="Înapoi">${icon('back')}</button><div><h1>Detalii PPL</h1><p>${escapeHtml(row.nume_complet)}</p></div>${archived ? '<span class="status status-archived">Arhivat</span>' : ''}</section>
     ${pplRecordMetaMarkup(row, history)}
@@ -219,8 +232,9 @@ export async function renderDetailsPage(id: string) {
       : `ATENȚIE: data depunerii a fost schimbată din ${formatYmd(original.data_depunerii)} în ${formatYmd(currentDate)}. Această modificare schimbă statusul persoanei din „${oldStatus}” în „${newStatus}”.`
   }
 
+  bindNameField(dirty)
   bindDateField(dirty)
-  document.querySelectorAll('#ppl-form input, #ppl-form select').forEach((el) => el.addEventListener('input', dirty))
+  document.querySelectorAll('#ppl-form input:not(#field-name), #ppl-form select').forEach((el) => el.addEventListener('input', dirty))
 
   const form = document.querySelector<HTMLFormElement>('#ppl-form')!
   form.addEventListener('submit', async (event) => {
