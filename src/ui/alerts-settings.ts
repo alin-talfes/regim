@@ -1,5 +1,5 @@
 import { getNotificationPreferences, updateNotificationPreferences } from '../lib/api'
-import { operationalMilestones, quarantineState } from '../lib/dates'
+import { alertState, operationalMilestones } from '../lib/dates'
 import { currentPushSubscription, disablePush, enablePush, isIos, isStandalone, pushSupported } from '../lib/push'
 import { friendlyError, refreshRoute, sortPpl, toast } from './base'
 import { bindPplCards, pplCard } from './evidence'
@@ -13,13 +13,14 @@ export async function renderAlertsPage() {
     const earlyRows = rows.filter((r) => operationalMilestones(r.data_depunerii).some((m) => m.dueToday))
     const earlyIds = new Set(earlyRows.map((r) => r.id))
     const groups = [
-      { title: 'De tratat azi – zi nelucrătoare', rows: earlyRows },
-      { title: 'Expirate', rows: rows.filter((r) => !earlyIds.has(r.id) && quarantineState(r.data_depunerii).kind === 'expired') },
-      { title: 'Expiră astăzi', rows: rows.filter((r) => !earlyIds.has(r.id) && quarantineState(r.data_depunerii).kind === 'today') },
-      { title: 'Expiră mâine', rows: rows.filter((r) => !earlyIds.has(r.id) && quarantineState(r.data_depunerii).kind === 'tomorrow') },
+      { title: 'ATENȚIE – se împlinește în zi nelucrătoare', rows: earlyRows, statusLabel: undefined },
+      { title: 'Expiră mâine', rows: rows.filter((r) => !earlyIds.has(r.id) && alertState(r.data_depunerii).kind === 'tomorrow'), statusLabel: 'Expiră mâine' },
+      { title: 'Expiră astăzi', rows: rows.filter((r) => !earlyIds.has(r.id) && alertState(r.data_depunerii).kind === 'today'), statusLabel: 'Expiră astăzi' },
+      { title: 'De aplicat regim provizoriu astăzi', rows: rows.filter((r) => !earlyIds.has(r.id) && alertState(r.data_depunerii).kind === 'provisional_today'), statusLabel: 'De aplicat regim provizoriu astăzi' },
+      { title: 'Expirat', rows: rows.filter((r) => !earlyIds.has(r.id) && alertState(r.data_depunerii).kind === 'expired'), statusLabel: 'Expirat' },
     ]
     page.innerHTML = `<section class="page-head"><div><h1>Alerte</h1><p>Carantine care necesită atenție în programul L–V.</p></div></section>
-      ${groups.map((group, index) => `<section class="alert-group ${index === 0 && group.rows.length ? 'alert-group-priority' : ''}"><div class="group-title"><h2>${group.title}</h2><span>${group.rows.length}</span></div>${group.rows.length ? `<div class="ppl-list">${group.rows.map(pplCard).join('')}</div>` : '<div class="empty-inline">Nicio persoană.</div>'}</section>`).join('')}`
+      ${groups.map((group, index) => `<section class="alert-group ${index === 0 && group.rows.length ? 'alert-group-priority' : ''}"><div class="group-title"><h2>${group.title}</h2><span>${group.rows.length}</span></div>${group.rows.length ? `<div class="ppl-list">${group.rows.map((row) => pplCard(row, group.statusLabel)).join('')}</div>` : '<div class="empty-inline">Nicio persoană.</div>'}</section>`).join('')}`
     bindPplCards()
   } catch {
     page.innerHTML = '<div class="error-state">Alertele nu au putut fi încărcate.</div>'

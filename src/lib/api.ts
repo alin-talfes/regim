@@ -46,8 +46,9 @@ export async function updatePpl(id: string, input: PplInput): Promise<void> {
 }
 
 export async function archivePpl(id: string): Promise<void> {
-  const { error } = await supabase.from('ppl').update({ deleted_at: new Date().toISOString() }).eq('id', id)
+  const { data, error } = await supabase.rpc('archive_ppl', { p_id: id })
   if (error) throw error
+  if (data !== true) throw new Error('Persoana nu a putut fi ștearsă sau nu mai este activă.')
 }
 
 export async function getNotificationPreferences(): Promise<NotificationPreferences> {

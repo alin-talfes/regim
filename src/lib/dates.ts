@@ -171,6 +171,17 @@ export function quarantineState(depositYmd: string, todayYmd = bucharestToday())
   return { day, expiry, kind: 'in_quarantine' as const, label: 'În carantină' }
 }
 
+export type AlertKind = 'none' | 'tomorrow' | 'today' | 'provisional_today' | 'expired'
+
+export function alertState(depositYmd: string, todayYmd = bucharestToday()) {
+  const day = quarantineDay(depositYmd, todayYmd)
+  if (day === 20) return { day, kind: 'tomorrow' as const, label: 'Expiră mâine' }
+  if (day === 21) return { day, kind: 'today' as const, label: 'Expiră astăzi' }
+  if (day === 22) return { day, kind: 'provisional_today' as const, label: 'De aplicat regim provizoriu astăzi' }
+  if (day >= 23) return { day, kind: 'expired' as const, label: 'Expirat' }
+  return { day, kind: 'none' as const, label: '' }
+}
+
 export function isFutureDate(ymd: string, todayYmd = bucharestToday()) {
   return calendarDayDifference(todayYmd, ymd) > 0
 }

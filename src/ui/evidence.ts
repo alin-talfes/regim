@@ -11,7 +11,7 @@ function operationalWarning(row: PplRow) {
   return `<div class="operational-warning" role="note"><strong>Atenție – zi nelucrătoare</strong>${milestones.map((item) => `<span>Ziua ${item.day} cade ${escapeHtml(item.nonWorkingReason)} (${formatYmd(item.date)}). ${item.dueToday ? '<b>De tratat astăzi.</b>' : `Alertă anticipată: ${formatYmd(item.operationalDate)}.`}</span>`).join('')}</div>`
 }
 
-export function pplCard(row: PplRow) {
+export function pplCard(row: PplRow, statusLabelOverride?: string) {
   const state = quarantineState(row.data_depunerii)
   return `<article class="ppl-card" data-ppl-id="${row.id}" tabindex="0" role="button" aria-label="Deschide ${escapeHtml(row.nume_complet)}">
     <div class="ppl-card-head">
@@ -19,7 +19,7 @@ export function pplCard(row: PplRow) {
         <h3>${escapeHtml(row.nume_complet)}</h3>
         <div class="meta-line"><strong>${escapeHtml(row.camera)}</strong><span>•</span><span>${escapeHtml(LEGAL_LABELS[row.situatie_juridica])}</span></div>
       </div>
-      <span class="${statusClass(state.kind)}">${escapeHtml(state.label)}</span>
+      <span class="${statusClass(state.kind)}">${escapeHtml(statusLabelOverride ?? state.label)}</span>
     </div>
     <div class="ppl-card-grid">
       <div><span>Depunere</span><strong>${formatYmd(row.data_depunerii)}</strong></div>
