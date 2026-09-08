@@ -144,7 +144,7 @@ export function previousWorkingDay(ymd: string): string {
 }
 
 export interface OperationalMilestone {
-  day: 20 | 21 | 22
+  day: 21 | 22
   date: string
   operationalDate: string
   nonWorkingReason: string
@@ -152,7 +152,7 @@ export interface OperationalMilestone {
 }
 
 export function operationalMilestones(depositYmd: string, todayYmd = bucharestToday()): OperationalMilestone[] {
-  const milestones = ([20, 21, 22] as const).map((day) => ({ day, date: addCalendarDays(depositYmd, day - 1) }))
+  const milestones = ([21, 22] as const).map((day) => ({ day, date: addCalendarDays(depositYmd, day - 1) }))
   return milestones.flatMap(({ day, date }) => {
     const info = nonWorkingDayInfo(date)
     if (!info.nonWorking) return []
