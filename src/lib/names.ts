@@ -14,17 +14,20 @@ function levenshtein(a: string, b: string): number {
   if (a === b) return 0
   if (!a.length) return b.length
   if (!b.length) return a.length
-  const previous = Array.from({ length: b.length + 1 }, (_, index) => index)
-  const current = new Array<number>(b.length + 1)
+  const previous: number[] = Array.from({ length: b.length + 1 }, (_, index) => index)
+  const current: number[] = Array.from({ length: b.length + 1 }, () => 0)
   for (let i = 1; i <= a.length; i += 1) {
     current[0] = i
     for (let j = 1; j <= b.length; j += 1) {
       const cost = a[i - 1] === b[j - 1] ? 0 : 1
-      current[j] = Math.min(current[j - 1] + 1, previous[j] + 1, previous[j - 1] + cost)
+      const insertion = (current[j - 1] ?? i) + 1
+      const deletion = (previous[j] ?? j) + 1
+      const substitution = (previous[j - 1] ?? j - 1) + cost
+      current[j] = Math.min(insertion, deletion, substitution)
     }
-    for (let j = 0; j <= b.length; j += 1) previous[j] = current[j]
+    for (let j = 0; j <= b.length; j += 1) previous[j] = current[j] ?? 0
   }
-  return previous[b.length]
+  return previous[b.length] ?? b.length
 }
 
 export function personNameSimilarity(a: string, b: string): number {
