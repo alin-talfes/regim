@@ -60,7 +60,7 @@ export function pplHistoryMarkup(row: PplRow, history: PplHistoryRow[], unavaila
     </div>
   </article>`)
 
-  if (isAutoArchived(row.data_depunerii)) {
+  if (!row.deleted_at && isAutoArchived(row.data_depunerii)) {
     const archivedDate = addCalendarDays(row.data_depunerii, 30)
     events.push(`<article class="history-item history-item-system">
       <div class="history-dot"></div>
