@@ -72,7 +72,7 @@ function bindDateField(onChange?: () => void, rejectArchivedDate = false) {
       const day21 = quarantineExpiry(ymd)
       const provisionalDate = provisionalRegimeDate(ymd)
       preview.hidden = false
-      preview.innerHTML = `<div><span>Ziua 21</span><strong>${formatYmd(day21)}</strong></div><div><span>Data aplicării regimului provizoriu</span><strong>${formatYmd(provisionalDate)}</strong></div>`
+      preview.innerHTML = `<div><span>Ziua 21</span><strong>${formatYmd(day21)}</strong></div><div><span>Data aplicării regimului</span><strong>${formatYmd(provisionalDate)}</strong></div>`
     } else preview.hidden = true
     onChange?.()
   }
