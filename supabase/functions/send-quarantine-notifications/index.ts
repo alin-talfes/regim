@@ -45,7 +45,29 @@ function content(item: any) {
   }
   if (day === 20) return { title: `Carantină: ${name}`, body: `Camera ${room} – carantina expiră mâine.` };
   if (day === 21) return { title: "Carantină expiră astăzi", body: `${name}, camera ${room}, împlinește astăzi 21 de zile.` };
-  return { title: "Aplicare regim provizoriu", body: `${name}, camera ${room} – carantina s-a încheiat ieri; astăzi este Ziua 22.` };
+  if (day === 22) return { title: "Aplicare regim provizoriu", body: `${name}, camera ${room} – carantina s-a încheiat ieri; astăzi este Ziua 22.` };
+  return { title: "ATENȚIE – regim provizoriu restant", body: `${name}, camera ${room} – este Ziua 23. Regimul provizoriu trebuia aplicat ieri.` };
+}
+
+function groupedContent(items: any[]) {
+  const sample = items.slice(0, 3).map((item) => `${String(item.nume_complet)} (camera ${String(item.camera)}, Ziua ${Number(item.quarantine_day)})`).join('; ');
+  const extra = items.length > 3 ? `; +${items.length - 3} ${items.length - 3 === 1 ? "persoană" : "persoane"}` : "";
+  return {
+    title: `REGIM – ${items.length} ${items.length === 1 ? "persoană necesită" : "persoane necesită"} acțiune`,
+    body: `${sample}${extra}.`,
+  };
+}
+
+async function updateClaim(item: any, mode: "sent" | "failed" | "release", error = "") {
+  const base = {
+    p_user_id: item.user_id,
+    p_ppl_id: item.ppl_id,
+    p_day: item.quarantine_day,
+    p_date: item.notification_date,
+  };
+  if (mode === "sent") return admin.rpc("mark_notification_sent", base);
+  if (mode === "release") return admin.rpc("release_notification_claim", { ...base, p_error: error.slice(0, 500) });
+  return admin.rpc("mark_notification_failed", { ...base, p_error: error.slice(0, 500) });
 }
 
 Deno.serve(async (req: Request) => {
@@ -59,7 +81,7 @@ Deno.serve(async (req: Request) => {
   const { data: candidates, error: candidateError } = await admin.rpc("notification_candidates");
   if (candidateError) return Response.json({ error: "Candidate lookup failed", detail: safeMessage(candidateError) }, { status: 500 });
 
-  const stats = { ok: true, candidates: candidates?.length ?? 0, claimed: 0, claim_errors: 0, claim_rejected: 0, no_subscriptions: 0, sent: 0, failed: 0 };
+  const stats = { ok: true, candidates: candidates?.length ?? 0, claimed: 0, claim_errors: 0, claim_rejected: 0, no_subscriptions: 0, sent: 0, failed: 0, grouped_pushes: 0 };
   if (!candidates?.length) return Response.json(stats, { headers: { "Cache-Control": "no-store" } });
 
   const vapid = await admin.rpc("get_vapid_keys");
@@ -68,35 +90,51 @@ Deno.serve(async (req: Request) => {
   }
   webpush.setVapidDetails("https://alin-talfes.github.io/regim/", vapid.data[0].public_key, vapid.data[0].private_key);
 
+  const byUser = new Map<string, any[]>();
   for (const item of candidates) {
-    const { data: claim, error: claimError } = await admin.rpc("claim_notification", {
-      p_user_id: item.user_id,
-      p_ppl_id: item.ppl_id,
-      p_day: item.quarantine_day,
-      p_date: item.notification_date,
-    });
-    if (claimError) { stats.claim_errors += 1; continue; }
-    if (!isRpcTrue(claim)) { stats.claim_rejected += 1; continue; }
-    stats.claimed += 1;
+    const key = String(item.user_id);
+    byUser.set(key, [...(byUser.get(key) ?? []), item]);
+  }
 
-    const { data: subscriptions, error: subError } = await admin.rpc("notification_push_subscriptions", { p_user_id: item.user_id });
-    if (subError || !subscriptions?.length) {
-      stats.no_subscriptions += 1;
-      await admin.rpc("release_notification_claim", {
+  for (const [userId, userCandidates] of byUser) {
+    const claimed: any[] = [];
+    for (const item of userCandidates) {
+      const { data: claim, error: claimError } = await admin.rpc("claim_notification", {
         p_user_id: item.user_id,
         p_ppl_id: item.ppl_id,
         p_day: item.quarantine_day,
         p_date: item.notification_date,
-        p_error: subError ? `subscription lookup failed: ${safeMessage(subError)}` : "no active subscription",
       });
+      if (claimError) { stats.claim_errors += 1; continue; }
+      if (!isRpcTrue(claim)) { stats.claim_rejected += 1; continue; }
+      stats.claimed += 1;
+      claimed.push(item);
+    }
+    if (!claimed.length) continue;
+
+    const { data: subscriptions, error: subError } = await admin.rpc("notification_push_subscriptions", { p_user_id: userId });
+    if (subError || !subscriptions?.length) {
+      stats.no_subscriptions += claimed.length;
+      const reason = subError ? `subscription lookup failed: ${safeMessage(subError)}` : "no active subscription";
+      for (const item of claimed) await updateClaim(item, "release", reason);
       continue;
     }
 
-    const message = content(item);
-    const payload = JSON.stringify({ ...message, url: "/regim/#/alerte", tag: `regim-${item.ppl_id}-${item.quarantine_day}-${item.notification_date}`, milestoneDate: item.milestone_date, early: Boolean(item.is_early) });
+    const message = claimed.length === 1 ? content(claimed[0]) : groupedContent(claimed);
+    const payload = JSON.stringify({
+      ...message,
+      url: "/regim/#/alerte",
+      tag: claimed.length === 1
+        ? `regim-${claimed[0].ppl_id}-${claimed[0].quarantine_day}-${claimed[0].notification_date}`
+        : `regim-group-${userId}-${claimed[0].notification_date}`,
+      milestoneDate: claimed.length === 1 ? claimed[0].milestone_date : null,
+      early: claimed.length === 1 ? Boolean(claimed[0].is_early) : false,
+      grouped: claimed.length > 1,
+      count: claimed.length,
+    });
+
     let delivered = 0;
     const errors: string[] = [];
-
     for (const subscription of subscriptions) {
       try {
         await webpush.sendNotification({ endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } }, payload, { TTL: 3600, urgency: "high" });
@@ -109,11 +147,13 @@ Deno.serve(async (req: Request) => {
     }
 
     if (delivered > 0) {
-      await admin.rpc("mark_notification_sent", { p_user_id: item.user_id, p_ppl_id: item.ppl_id, p_day: item.quarantine_day, p_date: item.notification_date });
-      stats.sent += 1;
+      for (const item of claimed) await updateClaim(item, "sent");
+      stats.sent += claimed.length;
+      if (claimed.length > 1) stats.grouped_pushes += 1;
     } else {
-      await admin.rpc("mark_notification_failed", { p_user_id: item.user_id, p_ppl_id: item.ppl_id, p_day: item.quarantine_day, p_date: item.notification_date, p_error: errors.join(" | ").slice(0, 500) || "push failed" });
-      stats.failed += 1;
+      const reason = errors.join(" | ").slice(0, 500) || "push failed";
+      for (const item of claimed) await updateClaim(item, "failed", reason);
+      stats.failed += claimed.length;
     }
   }
 
