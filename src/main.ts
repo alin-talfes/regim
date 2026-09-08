@@ -1,6 +1,7 @@
 import './style.css'
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 import { getMyProfile } from './lib/api'
+import { isAutoArchived, operationalMilestones, quarantineState } from './lib/dates'
 import { disablePush, registerServiceWorker } from './lib/push'
 import { supabase } from './lib/supabase'
 import { icon, navItem, route } from './ui/base'
@@ -57,8 +58,7 @@ async function renderLogin(message = '') {
 
 async function renderShell() {
   const rows = await loadPpl().catch(() => [])
-  const { operationalMilestones, quarantineState } = await import('./lib/dates')
-  const alerts = rows.filter((row) => quarantineState(row.data_depunerii).day >= 20 || operationalMilestones(row.data_depunerii).some((m) => m.dueToday)).length
+  const alerts = rows.filter((row) => !isAutoArchived(row.data_depunerii) && (quarantineState(row.data_depunerii).day >= 20 || operationalMilestones(row.data_depunerii).some((m) => m.dueToday))).length
   const [top] = route()
   app.innerHTML = `<div class="app-shell">
     <header class="topbar"><div><div class="topbar-brand">REGIM</div><div class="topbar-subtitle">Evidență carantină</div></div><button class="icon-btn" id="logout-btn" type="button" aria-label="Deconectare">${icon('logout')}</button></header>
