@@ -40,9 +40,9 @@ export async function renderSettingsPage() {
       <section class="settings-card">
         <div class="setting-row"><div><strong>Notificări</strong><span>Activează sau dezactivează toate alertele.</span></div><label class="switch"><input id="notif-enabled" type="checkbox" ${prefs.enabled ? 'checked' : ''}/><span></span></label></div>
         <div class="setting-block"><strong>Zile notificare</strong>
-          ${[20,21,22].map((day) => `<label class="check-row"><input class="day-check" type="checkbox" value="${day}" ${prefs.notification_days.includes(day) ? 'checked' : ''}/><span>Ziua ${day}${day === 20 ? ' – expiră mâine' : day === 21 ? ' – expiră astăzi' : ' – aplicare regim provizoriu'}</span></label>`).join('')}
+          ${[20,21,22,23].map((day) => `<label class="check-row"><input class="day-check" type="checkbox" value="${day}" ${prefs.notification_days.includes(day) ? 'checked' : ''}/><span>Ziua ${day}${day === 20 ? ' – expiră mâine' : day === 21 ? ' – expiră astăzi' : day === 22 ? ' – aplicare regim provizoriu' : ' – regim provizoriu restant'}</span></label>`).join('')}
         </div>
-        <div class="operational-policy-note">Dacă Ziua 20, 21 sau 22 cade sâmbătă, duminică ori într-o sărbătoare legală, notificarea se trimite în ultima zi lucrătoare anterioară, la ora setată.</div>
+        <div class="operational-policy-note">Dacă Ziua 20, 21 sau 22 cade sâmbătă, duminică ori într-o sărbătoare legală, notificarea se trimite în ultima zi lucrătoare anterioară, la ora setată. Ziua 23 se notifică numai dacă persoana este încă în evidența activă; persoanele arhivate nu generează notificări.</div>
         <label class="time-setting">Ora notificării<input id="notif-time" type="time" value="${prefs.notification_time.slice(0,5)}" /></label>
         <div class="timezone-note">Fus orar: Europe/Bucharest</div>
         <button id="save-settings" class="btn btn-primary btn-block" type="button" ${navigator.onLine ? '' : 'disabled'}>Salvează setările</button>
