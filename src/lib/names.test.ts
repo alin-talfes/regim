@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { normalizePersonName, personNameSimilarity } from './names'
+import { normalizePersonName, personNameSimilarity, uppercasePersonName } from './names'
+
+describe('PPL name formatting', () => {
+  it('forces Romanian names to uppercase', () => {
+    expect(uppercasePersonName('Șerban Țepeș Ion')).toBe('ȘERBAN ȚEPEȘ ION')
+    expect(uppercasePersonName('popescu ion')).toBe('POPESCU ION')
+  })
+})
 
 describe('duplicate PPL name detection', () => {
   it('normalizes Romanian diacritics and token order', () => {
