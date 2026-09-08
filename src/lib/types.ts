@@ -17,6 +17,22 @@ export interface PplRow {
   deleted_by: string | null
 }
 
+export type PplAuditAction = 'CREATE_PPL' | 'UPDATE_PPL' | 'ARCHIVE_PPL' | 'RESTORE_PPL' | string
+
+export interface PplHistoryRow {
+  audit_id: number
+  action: PplAuditAction
+  event_at: string
+  actor_user_id: string | null
+  actor_display_name: string
+  old_camera: string | null
+  new_camera: string | null
+  old_situatie_juridica: string | null
+  new_situatie_juridica: string | null
+  old_data_depunerii: string | null
+  new_data_depunerii: string | null
+}
+
 export interface NotificationPreferences {
   user_id: string
   enabled: boolean
