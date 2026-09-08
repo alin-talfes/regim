@@ -24,6 +24,12 @@ export async function listPpl(): Promise<PplRow[]> {
   return (data ?? []) as PplRow[]
 }
 
+export async function listRemovedPpl(): Promise<PplRow[]> {
+  const { data, error } = await supabase.rpc('removed_ppl')
+  if (error) throw error
+  return (data ?? []) as PplRow[]
+}
+
 export async function getPpl(id: string): Promise<PplRow | null> {
   const { data, error } = await supabase
     .from('ppl')
@@ -31,7 +37,11 @@ export async function getPpl(id: string): Promise<PplRow | null> {
     .eq('id', id)
     .maybeSingle()
   if (error) throw error
-  return data as PplRow | null
+  if (data) return data as PplRow
+
+  const { data: removed, error: removedError } = await supabase.rpc('removed_ppl_by_id', { p_id: id })
+  if (removedError) throw removedError
+  return ((removed ?? [])[0] ?? null) as PplRow | null
 }
 
 export async function getPplHistory(id: string): Promise<PplHistoryRow[]> {
