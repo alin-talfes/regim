@@ -1,8 +1,8 @@
-import { archivePpl, createPpl, getPpl, getPplHistory, updatePpl, type PplInput } from '../lib/api'
+import { archivePpl, createPpl, getPpl, getPplHistory, listRemovedPpl, updatePpl, type PplInput } from '../lib/api'
 import { alertState, bucharestToday, formatYmd, isAutoArchived, isFutureDate, maskDateInput, parseDisplayDate, provisionalRegimeDate, quarantineExpiry } from '../lib/dates'
 import { findPotentialDuplicates, type DuplicateMatch } from '../lib/names'
-import { ROOMS, type LegalStatus, type Room } from '../lib/types'
-import { escapeHtml, friendlyError, go, icon, refreshRoute, toast } from './base'
+import { ROOMS, type LegalStatus, type PplRow, type Room } from '../lib/types'
+import { LEGAL_LABELS, escapeHtml, friendlyError, go, icon, refreshRoute, toast } from './base'
 import { pplHistoryMarkup, pplRecordMetaMarkup } from './ppl-history'
 import { invalidatePpl, loadPpl } from './store'
 
@@ -41,6 +41,18 @@ function formMarkup(values?: Partial<PplInput>, submitLabel = 'Adaugă PPL') {
     <div id="date-preview" class="date-preview" hidden></div>
     <button id="form-submit" class="btn btn-primary btn-block" type="submit" ${navigator.onLine ? '' : 'disabled'}>${submitLabel}</button>
   </form>`
+}
+
+function archivedReadOnlyMarkup(row: PplRow) {
+  return `<section aria-label="Date arhivate">
+    <div class="operational-policy-note"><strong>Arhivat:</strong> persoana a fost scoasă manual din evidența activă. Datele și istoricul sunt păstrate doar pentru consultare.</div>
+    <div class="record-meta">
+      <div><span>Nume complet</span><strong>${escapeHtml(row.nume_complet)}</strong></div>
+      <div><span>Camera</span><strong>${escapeHtml(row.camera)}</strong></div>
+      <div><span>Situație juridică</span><strong>${escapeHtml(LEGAL_LABELS[row.situatie_juridica])}</strong></div>
+      <div><span>Data depunerii</span><strong>${escapeHtml(formatYmd(row.data_depunerii))}</strong></div>
+    </div>
+  </section>`
 }
 
 function bindDateField(onChange?: () => void, rejectArchivedDate = false) {
@@ -107,7 +119,7 @@ async function confirmPotentialDuplicate(matches: DuplicateMatch[]) {
   const dialog = document.querySelector<HTMLDialogElement>('#duplicate-dialog')!
   const list = document.querySelector<HTMLDivElement>('#duplicate-list')!
   list.innerHTML = matches.slice(0, 4).map(({ row }) => {
-    const status = operationalLabel(row.data_depunerii)
+    const status = row.deleted_at ? 'Arhivat – scos din evidență' : operationalLabel(row.data_depunerii)
     return `<div class="duplicate-match"><strong>${escapeHtml(row.nume_complet)}</strong><span>Camera ${escapeHtml(row.camera)} · ${escapeHtml(status)}</span></div>`
   }).join('')
   return waitForDialog(dialog)
@@ -137,7 +149,8 @@ export async function renderAddPage() {
     const button = document.querySelector<HTMLButtonElement>('#form-submit')!
     button.disabled = true; button.textContent = 'Se verifică…'
     try {
-      const matches = findPotentialDuplicates(result.input.nume_complet, await loadPpl(true))
+      const [visibleRows, removedRows] = await Promise.all([loadPpl(true), listRemovedPpl()])
+      const matches = findPotentialDuplicates(result.input.nume_complet, [...visibleRows, ...removedRows])
       if (matches.length && !(await confirmPotentialDuplicate(matches))) {
         button.disabled = false; button.textContent = 'Adaugă PPL'
         return
@@ -159,24 +172,29 @@ export async function renderDetailsPage(id: string) {
   page.innerHTML = '<div class="loading">Se încarcă…</div>'
   const row = await getPpl(id).catch(() => null)
   if (!row) {
-    page.innerHTML = '<div class="error-state">Persoana nu a fost găsită sau nu mai este activă.</div>'
+    page.innerHTML = '<div class="error-state">Persoana nu a fost găsită.</div>'
     return
   }
 
   let historyUnavailable = false
   const history = await getPplHistory(id).catch(() => { historyUnavailable = true; return [] })
+  const manuallyRemoved = Boolean(row.deleted_at)
+  const archived = manuallyRemoved || isAutoArchived(row.data_depunerii)
   const original = { nume_complet: row.nume_complet, camera: row.camera, situatie_juridica: row.situatie_juridica, data_depunerii: row.data_depunerii }
   page.innerHTML = `
-    <section class="detail-head"><button class="icon-btn back-btn" id="back-btn" aria-label="Înapoi">${icon('back')}</button><div><h1>Detalii PPL</h1><p>${escapeHtml(row.nume_complet)}</p></div>${isAutoArchived(row.data_depunerii) ? '<span class="status status-archived">Arhivat</span>' : ''}</section>
+    <section class="detail-head"><button class="icon-btn back-btn" id="back-btn" aria-label="Înapoi">${icon('back')}</button><div><h1>Detalii PPL</h1><p>${escapeHtml(row.nume_complet)}</p></div>${archived ? '<span class="status status-archived">Arhivat</span>' : ''}</section>
     ${pplRecordMetaMarkup(row, history)}
-    <div id="unsaved" class="unsaved" hidden>Ai modificări nesalvate.</div>
-    <div id="date-change-warning" class="date-change-warning" hidden></div>
-    ${formMarkup(original, 'Salvează modificările')}
+    ${manuallyRemoved ? archivedReadOnlyMarkup(row) : `
+      <div id="unsaved" class="unsaved" hidden>Ai modificări nesalvate.</div>
+      <div id="date-change-warning" class="date-change-warning" hidden></div>
+      ${formMarkup(original, 'Salvează modificările')}`}
     ${pplHistoryMarkup(row, history, historyUnavailable)}
-    <button id="delete-btn" class="btn btn-danger-outline btn-block destructive" type="button" ${navigator.onLine ? '' : 'disabled'}>Șterge din evidență</button>
-    <dialog id="delete-dialog" class="confirm-dialog"><form method="dialog" class="confirm-card"><h2>Confirmare ștergere</h2><p>Sigur dorești să scoți persoana <strong>${escapeHtml(row.nume_complet)}</strong> din evidență?</p><div class="delete-retention-note">Această acțiune nu elimină definitiv datele din baza de date. Istoricul rămâne păstrat.</div><div class="confirm-actions"><button value="cancel" class="btn btn-secondary">Anulează</button><button value="delete" class="btn btn-danger">Confirmă ștergerea</button></div></form></dialog>
-    ${dateChangeDialogMarkup()}`
+    ${manuallyRemoved ? '' : `
+      <button id="delete-btn" class="btn btn-danger-outline btn-block destructive" type="button" ${navigator.onLine ? '' : 'disabled'}>Șterge din evidență</button>
+      <dialog id="delete-dialog" class="confirm-dialog"><form method="dialog" class="confirm-card"><h2>Confirmare ștergere</h2><p>Sigur dorești să scoți persoana <strong>${escapeHtml(row.nume_complet)}</strong> din evidență?</p><div class="delete-retention-note">Această acțiune nu elimină definitiv datele din baza de date. Istoricul rămâne păstrat și persoana va putea fi consultată prin filtrul Arhivat.</div><div class="confirm-actions"><button value="cancel" class="btn btn-secondary">Anulează</button><button value="delete" class="btn btn-danger">Confirmă ștergerea</button></div></form></dialog>
+      ${dateChangeDialogMarkup()}`}`
   document.querySelector('#back-btn')!.addEventListener('click', () => go('evidenta'))
+  if (manuallyRemoved) return
 
   const dirty = () => {
     const currentDateValue = document.querySelector<HTMLInputElement>('#field-date')!.value
