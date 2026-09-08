@@ -15,12 +15,12 @@ describe('quarantine business rule', () => {
   it('labels status correctly', () => {
     expect(quarantineState(deposit, '2026-09-20').label).toBe('Expiră mâine')
     expect(quarantineState(deposit, '2026-09-21').label).toBe('Expiră astăzi')
-    expect(quarantineState(deposit, '2026-09-22').label).toBe('Expirată de 1 zi')
+    expect(quarantineState(deposit, '2026-09-22').label).toBe('Aplicare regim astăzi')
   })
   it('classifies alert stages exactly on days 20, 21, 22, 23-30 and archives from day 31', () => {
     expect(alertState(deposit, '2026-09-20')).toEqual({ day: 20, kind: 'tomorrow', label: 'Expiră mâine' })
     expect(alertState(deposit, '2026-09-21')).toEqual({ day: 21, kind: 'today', label: 'Expiră astăzi' })
-    expect(alertState(deposit, '2026-09-22')).toEqual({ day: 22, kind: 'provisional_today', label: 'De aplicat regim provizoriu astăzi' })
+    expect(alertState(deposit, '2026-09-22')).toEqual({ day: 22, kind: 'provisional_today', label: 'Aplicare regim astăzi' })
     expect(alertState(deposit, '2026-09-23')).toEqual({ day: 23, kind: 'expired', label: 'Expirat' })
     expect(alertState(deposit, '2026-09-30')).toEqual({ day: 30, kind: 'expired', label: 'Expirat' })
     expect(alertState(deposit, '2026-10-01')).toEqual({ day: 31, kind: 'archived', label: 'Arhivat' })
