@@ -1,8 +1,10 @@
-import { archivePpl, createPpl, getPpl, updatePpl, type PplInput } from '../lib/api'
-import { bucharestToday, formatYmd, isAutoArchived, isFutureDate, maskDateInput, parseDisplayDate, provisionalRegimeDate, quarantineExpiry } from '../lib/dates'
+import { archivePpl, createPpl, getPpl, getPplHistory, updatePpl, type PplInput } from '../lib/api'
+import { alertState, bucharestToday, formatYmd, isAutoArchived, isFutureDate, maskDateInput, parseDisplayDate, provisionalRegimeDate, quarantineExpiry } from '../lib/dates'
+import { findPotentialDuplicates, type DuplicateMatch } from '../lib/names'
 import { ROOMS, type LegalStatus, type Room } from '../lib/types'
 import { escapeHtml, friendlyError, go, icon, refreshRoute, toast } from './base'
-import { invalidatePpl } from './store'
+import { pplHistoryMarkup, pplRecordMetaMarkup } from './ppl-history'
+import { invalidatePpl, loadPpl } from './store'
 
 function roomOptions(selected = '') {
   return `<option value="">Selectează camera</option>${ROOMS.map((room) => `<option value="${room}" ${selected === room ? 'selected' : ''}>${room}</option>`).join('')}`
@@ -10,6 +12,11 @@ function roomOptions(selected = '') {
 
 function legalOptions(selected = '') {
   return `<option value="">Selectează situația</option><option value="arestat_preventiv" ${selected === 'arestat_preventiv' ? 'selected' : ''}>Arestat preventiv</option><option value="condamnat_definitiv" ${selected === 'condamnat_definitiv' ? 'selected' : ''}>Condamnat definitiv</option>`
+}
+
+function operationalLabel(ymd: string) {
+  const state = alertState(ymd)
+  return state.kind === 'none' ? 'În carantină' : state.label
 }
 
 function formMarkup(values?: Partial<PplInput>, submitLabel = 'Adaugă PPL') {
@@ -81,9 +88,45 @@ function readPplForm(rejectArchivedDate = false): { input: PplInput | null; erro
   return { input: { nume_complet: name, camera: room, situatie_juridica: legal, data_depunerii: ymd } }
 }
 
+function duplicateDialogMarkup() {
+  return `<dialog id="duplicate-dialog" class="confirm-dialog"><form method="dialog" class="confirm-card"><h2>Posibil duplicat</h2><p>Există deja o persoană cu același nume sau foarte asemănător. Verifică înainte de adăugare.</p><div id="duplicate-list" class="duplicate-list"></div><div class="confirm-actions"><button value="cancel" class="btn btn-secondary">Anulează</button><button value="continue" class="btn btn-primary">Adaugă oricum</button></div></form></dialog>`
+}
+
+function dateChangeDialogMarkup() {
+  return `<dialog id="date-change-dialog" class="confirm-dialog"><form method="dialog" class="confirm-card"><h2>Confirmă modificarea datei</h2><p id="date-change-confirm-text"></p><div class="confirm-actions"><button value="cancel" class="btn btn-secondary">Anulează</button><button value="continue" class="btn btn-primary">Confirmă modificarea</button></div></form></dialog>`
+}
+
+function waitForDialog(dialog: HTMLDialogElement, acceptedValue = 'continue'): Promise<boolean> {
+  return new Promise((resolve) => {
+    dialog.addEventListener('close', () => resolve(dialog.returnValue === acceptedValue), { once: true })
+    dialog.showModal()
+  })
+}
+
+async function confirmPotentialDuplicate(matches: DuplicateMatch[]) {
+  const dialog = document.querySelector<HTMLDialogElement>('#duplicate-dialog')!
+  const list = document.querySelector<HTMLDivElement>('#duplicate-list')!
+  list.innerHTML = matches.slice(0, 4).map(({ row }) => {
+    const status = operationalLabel(row.data_depunerii)
+    return `<div class="duplicate-match"><strong>${escapeHtml(row.nume_complet)}</strong><span>Camera ${escapeHtml(row.camera)} · ${escapeHtml(status)}</span></div>`
+  }).join('')
+  return waitForDialog(dialog)
+}
+
+async function confirmDateChange(oldDate: string, newDate: string) {
+  const dialog = document.querySelector<HTMLDialogElement>('#date-change-dialog')!
+  const text = document.querySelector<HTMLParagraphElement>('#date-change-confirm-text')!
+  const oldStatus = operationalLabel(oldDate)
+  const newStatus = operationalLabel(newDate)
+  text.textContent = oldStatus === newStatus
+    ? `Modifici data depunerii din ${formatYmd(oldDate)} în ${formatYmd(newDate)}. Verifică atent documentul înainte de confirmare.`
+    : `Modifici data depunerii din ${formatYmd(oldDate)} în ${formatYmd(newDate)}. Această modificare schimbă statusul persoanei din „${oldStatus}” în „${newStatus}”.`
+  return waitForDialog(dialog)
+}
+
 export async function renderAddPage() {
   const page = document.querySelector<HTMLDivElement>('#page')!
-  page.innerHTML = `<section class="page-head"><div><h1>Adaugă PPL</h1><p>Completează datele de evidență.</p></div></section><div class="operational-policy-note"><strong>Regulă arhivare:</strong> nu poți adăuga o persoană care, raportat la data depunerii, este deja în Ziua 31 sau ulterior. Începând cu Ziua 31, persoanele existente sunt considerate arhivate și nu mai apar implicit în evidența activă.</div>${formMarkup()}`
+  page.innerHTML = `<section class="page-head"><div><h1>Adaugă PPL</h1><p>Completează datele de evidență.</p></div></section><div class="operational-policy-note"><strong>Regulă arhivare:</strong> nu poți adăuga o persoană care, raportat la data depunerii, este deja în Ziua 31 sau ulterior. Începând cu Ziua 31, persoanele existente sunt considerate arhivate și nu mai apar implicit în evidența activă.</div>${formMarkup()}${duplicateDialogMarkup()}`
   bindDateField(undefined, true)
   const form = document.querySelector<HTMLFormElement>('#ppl-form')!
   form.addEventListener('submit', async (event) => {
@@ -92,8 +135,14 @@ export async function renderAddPage() {
     const result = readPplForm(true)
     if (!result.input) return toast(result.error!, 'error')
     const button = document.querySelector<HTMLButtonElement>('#form-submit')!
-    button.disabled = true; button.textContent = 'Se salvează…'
+    button.disabled = true; button.textContent = 'Se verifică…'
     try {
+      const matches = findPotentialDuplicates(result.input.nume_complet, await loadPpl(true))
+      if (matches.length && !(await confirmPotentialDuplicate(matches))) {
+        button.disabled = false; button.textContent = 'Adaugă PPL'
+        return
+      }
+      button.textContent = 'Se salvează…'
       await createPpl(result.input)
       invalidatePpl()
       toast('Persoana a fost adăugată.')
@@ -113,22 +162,45 @@ export async function renderDetailsPage(id: string) {
     page.innerHTML = '<div class="error-state">Persoana nu a fost găsită sau nu mai este activă.</div>'
     return
   }
+
+  let historyUnavailable = false
+  const history = await getPplHistory(id).catch(() => { historyUnavailable = true; return [] })
   const original = { nume_complet: row.nume_complet, camera: row.camera, situatie_juridica: row.situatie_juridica, data_depunerii: row.data_depunerii }
   page.innerHTML = `
-    <section class="detail-head"><button class="icon-btn back-btn" id="back-btn" aria-label="Înapoi">${icon('back')}</button><div><h1>Detalii PPL</h1><p>${escapeHtml(row.nume_complet)}</p></div></section>
+    <section class="detail-head"><button class="icon-btn back-btn" id="back-btn" aria-label="Înapoi">${icon('back')}</button><div><h1>Detalii PPL</h1><p>${escapeHtml(row.nume_complet)}</p></div>${isAutoArchived(row.data_depunerii) ? '<span class="status status-archived">Arhivat</span>' : ''}</section>
+    ${pplRecordMetaMarkup(row, history)}
     <div id="unsaved" class="unsaved" hidden>Ai modificări nesalvate.</div>
+    <div id="date-change-warning" class="date-change-warning" hidden></div>
     ${formMarkup(original, 'Salvează modificările')}
-    <button id="delete-btn" class="btn btn-danger-outline btn-block destructive" type="button" ${navigator.onLine ? '' : 'disabled'}>Șterge</button>
-    <dialog id="delete-dialog" class="confirm-dialog"><form method="dialog" class="confirm-card"><h2>Confirmare ștergere</h2><p>Sigur dorești să ștergi persoana <strong>${escapeHtml(row.nume_complet)}</strong>?</p><div class="confirm-actions"><button value="cancel" class="btn btn-secondary">Anulează</button><button value="delete" class="btn btn-danger">Confirmă ștergerea</button></div></form></dialog>`
+    ${pplHistoryMarkup(row, history, historyUnavailable)}
+    <button id="delete-btn" class="btn btn-danger-outline btn-block destructive" type="button" ${navigator.onLine ? '' : 'disabled'}>Șterge din evidență</button>
+    <dialog id="delete-dialog" class="confirm-dialog"><form method="dialog" class="confirm-card"><h2>Confirmare ștergere</h2><p>Sigur dorești să scoți persoana <strong>${escapeHtml(row.nume_complet)}</strong> din evidență?</p><div class="delete-retention-note">Această acțiune nu elimină definitiv datele din baza de date. Istoricul rămâne păstrat.</div><div class="confirm-actions"><button value="cancel" class="btn btn-secondary">Anulează</button><button value="delete" class="btn btn-danger">Confirmă ștergerea</button></div></form></dialog>
+    ${dateChangeDialogMarkup()}`
   document.querySelector('#back-btn')!.addEventListener('click', () => go('evidenta'))
 
   const dirty = () => {
+    const currentDateValue = document.querySelector<HTMLInputElement>('#field-date')!.value
     const changed = document.querySelector<HTMLInputElement>('#field-name')!.value.trim() !== original.nume_complet
       || document.querySelector<HTMLSelectElement>('#field-room')!.value !== original.camera
       || document.querySelector<HTMLSelectElement>('#field-legal')!.value !== original.situatie_juridica
-      || document.querySelector<HTMLInputElement>('#field-date')!.value !== formatYmd(original.data_depunerii)
+      || currentDateValue !== formatYmd(original.data_depunerii)
     document.querySelector<HTMLDivElement>('#unsaved')!.hidden = !changed
+
+    const warning = document.querySelector<HTMLDivElement>('#date-change-warning')!
+    const currentDate = parseDisplayDate(currentDateValue)
+    if (!currentDate || currentDate === original.data_depunerii) {
+      warning.hidden = true
+      warning.textContent = ''
+      return
+    }
+    const oldStatus = operationalLabel(original.data_depunerii)
+    const newStatus = operationalLabel(currentDate)
+    warning.hidden = false
+    warning.textContent = oldStatus === newStatus
+      ? `ATENȚIE: data depunerii a fost schimbată din ${formatYmd(original.data_depunerii)} în ${formatYmd(currentDate)}. Verifică documentul înainte de salvare.`
+      : `ATENȚIE: data depunerii a fost schimbată din ${formatYmd(original.data_depunerii)} în ${formatYmd(currentDate)}. Această modificare schimbă statusul persoanei din „${oldStatus}” în „${newStatus}”.`
   }
+
   bindDateField(dirty)
   document.querySelectorAll('#ppl-form input, #ppl-form select').forEach((el) => el.addEventListener('input', dirty))
 
@@ -138,6 +210,7 @@ export async function renderDetailsPage(id: string) {
     if (!navigator.onLine) return toast('Fără conexiune. Salvarea este dezactivată.', 'error')
     const result = readPplForm()
     if (!result.input) return toast(result.error!, 'error')
+    if (result.input.data_depunerii !== original.data_depunerii && !(await confirmDateChange(original.data_depunerii, result.input.data_depunerii))) return
     const button = document.querySelector<HTMLButtonElement>('#form-submit')!
     button.disabled = true; button.textContent = 'Se salvează…'
     try {
@@ -160,7 +233,7 @@ export async function renderDetailsPage(id: string) {
     try {
       await archivePpl(id)
       invalidatePpl()
-      toast('Persoana a fost ștearsă din evidența activă.')
+      toast('Persoana a fost scoasă din evidența activă.')
       go('evidenta')
     } catch (error) {
       deleteButton.disabled = false
